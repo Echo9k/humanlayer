@@ -110,8 +110,8 @@ func (m *manager) CreateApproval(ctx context.Context, runID, toolName string, to
 				"error", err,
 				"approval_id", approval.ID)
 		}
-		// Publish resolved event for auto-approved
-		m.publishApprovalResolvedEvent(approval, true, comment)
+		// Publish resolved event for auto-approved (no images for auto-approved)
+		m.publishApprovalResolvedEvent(approval, true, comment, nil)
 	}
 
 	logLevel := slog.LevelInfo
@@ -159,6 +159,16 @@ func (m *manager) ApproveToolCall(ctx context.Context, id string, comment string
 		return fmt.Errorf("failed to update approval: %w", err)
 	}
 
+	// Store image paths if provided
+	if len(imagePaths) > 0 {
+		if err := m.store.StoreApprovalImages(ctx, id, imagePaths); err != nil {
+			slog.Warn("failed to store approval images",
+				"error", err,
+				"approval_id", id,
+				"image_count", len(imagePaths))
+		}
+	}
+
 	// Update correlation status in conversation events
 	if err := m.store.UpdateApprovalStatus(ctx, id, store.ApprovalStatusApproved); err != nil {
 		slog.Warn("failed to update approval status in conversation events",
@@ -166,8 +176,8 @@ func (m *manager) ApproveToolCall(ctx context.Context, id string, comment string
 			"approval_id", id)
 	}
 
-	// Publish event
-	m.publishApprovalResolvedEvent(approval, true, comment)
+	// Publish event with image paths
+	m.publishApprovalResolvedEvent(approval, true, comment, imagePaths)
 
 	// Update session status back to running
 	if err := m.updateSessionStatus(ctx, approval.SessionID, store.SessionStatusRunning); err != nil {
@@ -197,6 +207,16 @@ func (m *manager) DenyToolCall(ctx context.Context, id string, reason string, im
 		return fmt.Errorf("failed to update approval: %w", err)
 	}
 
+	// Store image paths if provided
+	if len(imagePaths) > 0 {
+		if err := m.store.StoreApprovalImages(ctx, id, imagePaths); err != nil {
+			slog.Warn("failed to store approval images",
+				"error", err,
+				"approval_id", id,
+				"image_count", len(imagePaths))
+		}
+	}
+
 	// Update correlation status in conversation events
 	if err := m.store.UpdateApprovalStatus(ctx, id, store.ApprovalStatusDenied); err != nil {
 		slog.Warn("failed to update approval status in conversation events",
@@ -204,8 +224,8 @@ func (m *manager) DenyToolCall(ctx context.Context, id string, reason string, im
 			"approval_id", id)
 	}
 
-	// Publish event
-	m.publishApprovalResolvedEvent(approval, false, reason)
+	// Publish event with image paths
+	m.publishApprovalResolvedEvent(approval, false, reason, imagePaths)
 
 	// Update session status back to running
 	if err := m.updateSessionStatus(ctx, approval.SessionID, store.SessionStatusRunning); err != nil {
@@ -258,7 +278,7 @@ func (m *manager) publishNewApprovalEvent(approval *store.Approval) {
 }
 
 // publishApprovalResolvedEvent publishes an event when an approval is resolved
-func (m *manager) publishApprovalResolvedEvent(approval *store.Approval, approved bool, responseText string) {
+func (m *manager) publishApprovalResolvedEvent(approval *store.Approval, approved bool, responseText string, imagePaths []string) {
 	if m.eventBus != nil {
 		eventData := map[string]interface{}{
 			"approval_id":   approval.ID,
@@ -269,6 +289,10 @@ func (m *manager) publishApprovalResolvedEvent(approval *store.Approval, approve
 		// Include tool_use_id if present
 		if approval.ToolUseID != nil {
 			eventData["tool_use_id"] = *approval.ToolUseID
+		}
+		// Include image_paths if present
+		if len(imagePaths) > 0 {
+			eventData["image_paths"] = imagePaths
 		}
 		event := bus.Event{
 			Type:      bus.EventApprovalResolved,
@@ -372,8 +396,8 @@ func (m *manager) CreateApprovalWithToolUseID(ctx context.Context, sessionID, to
 				"error", err,
 				"approval_id", approval.ID)
 		}
-		// Publish resolved event for auto-approved
-		m.publishApprovalResolvedEvent(approval, true, comment)
+		// Publish resolved event for auto-approved (no images for auto-approved)
+		m.publishApprovalResolvedEvent(approval, true, comment, nil)
 	}
 
 	logLevel := slog.LevelInfo

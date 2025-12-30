@@ -862,7 +862,43 @@ func (h *SessionHandlers) HardDeleteEmptyDraftSession(ctx context.Context, req a
 		}, nil
 	}
 
+	// Cleanup session images (best effort, don't fail on error)
+	cleanupSessionImages(string(req.Id))
+
 	return api.HardDeleteEmptyDraftSession204Response{}, nil
+}
+
+// cleanupSessionImages removes the image directory for a session
+// This is best-effort - errors are logged but don't cause failure
+func cleanupSessionImages(sessionID string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		slog.Warn("failed to get home directory for image cleanup",
+			"error", err,
+			"session_id", sessionID)
+		return
+	}
+
+	imagesDir := filepath.Join(home, ".humanlayer", "images", sessionID)
+
+	// Check if directory exists
+	if _, err := os.Stat(imagesDir); os.IsNotExist(err) {
+		// No images directory for this session, nothing to clean up
+		return
+	}
+
+	// Remove the entire session images directory
+	if err := os.RemoveAll(imagesDir); err != nil {
+		slog.Warn("failed to cleanup session images",
+			"error", err,
+			"session_id", sessionID,
+			"path", imagesDir)
+		return
+	}
+
+	slog.Debug("cleaned up session images",
+		"session_id", sessionID,
+		"path", imagesDir)
 }
 
 // isDraftEmpty checks if a draft session has no meaningful content

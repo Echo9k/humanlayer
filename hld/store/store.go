@@ -48,6 +48,8 @@ type ConversationStore interface {
 	GetApproval(ctx context.Context, id string) (*Approval, error)
 	GetPendingApprovals(ctx context.Context, sessionID string) ([]*Approval, error)
 	UpdateApprovalResponse(ctx context.Context, id string, status ApprovalStatus, comment string) error
+	// StoreApprovalImages stores image paths for an approval decision
+	StoreApprovalImages(ctx context.Context, approvalID string, imagePaths []string) error
 
 	// File snapshot operations
 	CreateFileSnapshot(ctx context.Context, snapshot *FileSnapshot) error
