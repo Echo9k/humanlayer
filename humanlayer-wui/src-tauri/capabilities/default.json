@@ -17,9 +17,18 @@
     "notification:default",
     "core:webview:allow-set-webview-zoom",
     "fs:default",
+    "fs:allow-mkdir",
+    "fs:allow-write-file",
+    "fs:allow-read-file",
+    "fs:allow-exists",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
     {
       "identifier": "fs:scope",
       "allow": [
+        {
+          "path": "$HOME/.humanlayer/**"
+        },
         {
           "path": "**/*"
         }
