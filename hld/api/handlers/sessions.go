@@ -654,7 +654,7 @@ func (h *SessionHandlers) UpdateSession(ctx context.Context, req api.UpdateSessi
 		} else {
 			// Auto-approve each pending approval
 			for _, approval := range pendingApprovals {
-				err := h.approvalManager.ApproveToolCall(ctx, approval.ID, "Auto-approved due to bypass permissions")
+				err := h.approvalManager.ApproveToolCall(ctx, approval.ID, "Auto-approved due to bypass permissions", nil)
 				if err != nil {
 					// Log error but continue with other approvals
 					slog.Error("Failed to auto-approve pending approval",

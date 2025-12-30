@@ -566,10 +566,11 @@ export class HTTPDaemonClient implements IDaemonClient {
     approvalId: string,
     decision: 'approve' | 'deny',
     comment?: string,
+    imagePaths?: string[],
   ): Promise<{ success: boolean; error?: string }> {
     await this.ensureConnected()
     try {
-      await this.client!.decideApproval(approvalId, decision, comment)
+      await this.client!.decideApproval(approvalId, decision, comment, { imagePaths })
       return { success: true }
     } catch (error: any) {
       return {
@@ -583,15 +584,17 @@ export class HTTPDaemonClient implements IDaemonClient {
   async approveFunctionCall(
     approvalId: string,
     comment?: string,
+    imagePaths?: string[],
   ): Promise<{ success: boolean; error?: string }> {
-    return this.sendDecision(approvalId, 'approve', comment)
+    return this.sendDecision(approvalId, 'approve', comment, imagePaths)
   }
 
   async denyFunctionCall(
     approvalId: string,
     comment?: string,
+    imagePaths?: string[],
   ): Promise<{ success: boolean; error?: string }> {
-    return this.sendDecision(approvalId, 'deny', comment)
+    return this.sendDecision(approvalId, 'deny', comment, imagePaths)
   }
 
   // Event Subscription

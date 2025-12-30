@@ -2134,6 +2134,15 @@ components:
           type: string
           description: Optional comment (required for deny)
           example: "Looks safe to proceed"
+        image_paths:
+          type: array
+          items:
+            type: string
+          maxItems: 5
+          description: |
+            Local file paths to images attached to this decision.
+            Daemon will read, validate, and encode these for Claude.
+            Maximum 5 images allowed.
 
     DecideApprovalResponse:
       type: object

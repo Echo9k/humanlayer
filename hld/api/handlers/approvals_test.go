@@ -312,7 +312,7 @@ func TestApprovalHandlers_DecideApproval(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockApprovalManager.EXPECT().
-					ApproveToolCall(gomock.Any(), "appr-123", "Looks good!").
+					ApproveToolCall(gomock.Any(), "appr-123", "Looks good!", gomock.Any()).
 					Return(nil)
 			},
 			expectedStatus: 200,
@@ -325,7 +325,7 @@ func TestApprovalHandlers_DecideApproval(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockApprovalManager.EXPECT().
-					ApproveToolCall(gomock.Any(), "appr-124", "").
+					ApproveToolCall(gomock.Any(), "appr-124", "", gomock.Any()).
 					Return(nil)
 			},
 			expectedStatus: 200,
@@ -339,7 +339,7 @@ func TestApprovalHandlers_DecideApproval(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockApprovalManager.EXPECT().
-					DenyToolCall(gomock.Any(), "appr-456", "This could delete important files").
+					DenyToolCall(gomock.Any(), "appr-456", "This could delete important files", gomock.Any()).
 					Return(nil)
 			},
 			expectedStatus: 200,
@@ -377,7 +377,7 @@ func TestApprovalHandlers_DecideApproval(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockApprovalManager.EXPECT().
-					ApproveToolCall(gomock.Any(), "appr-999", "").
+					ApproveToolCall(gomock.Any(), "appr-999", "", gomock.Any()).
 					Return(&store.NotFoundError{Type: "approval", ID: "appr-999"})
 			},
 			expectedStatus: 404,
@@ -394,7 +394,7 @@ func TestApprovalHandlers_DecideApproval(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockApprovalManager.EXPECT().
-					ApproveToolCall(gomock.Any(), "appr-111", "").
+					ApproveToolCall(gomock.Any(), "appr-111", "", gomock.Any()).
 					Return(&store.AlreadyDecidedError{ID: "appr-111", Status: "approved"})
 			},
 			expectedStatus: 400,
@@ -411,7 +411,7 @@ func TestApprovalHandlers_DecideApproval(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockApprovalManager.EXPECT().
-					ApproveToolCall(gomock.Any(), "appr-222", "").
+					ApproveToolCall(gomock.Any(), "appr-222", "", gomock.Any()).
 					Return(fmt.Errorf("database connection lost"))
 			},
 			expectedStatus: 500,

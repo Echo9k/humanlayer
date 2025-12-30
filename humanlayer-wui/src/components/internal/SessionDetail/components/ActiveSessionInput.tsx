@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useState, useRef, useImperativeHandle, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Session, SessionStatus } from '@/lib/daemon/types'
-import { Split, MessageCircleX, AlertCircle } from 'lucide-react'
+import { Split, MessageCircleX, AlertCircle, ImagePlus } from 'lucide-react'
 import { ActiveSessionActionButtons } from './ActiveSessionActionButtons'
 import { toast } from 'sonner'
 import {
@@ -19,6 +19,15 @@ import { Content } from '@tiptap/react'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { Card, CardContent } from '@/components/ui/card'
+import { open } from '@tauri-apps/plugin-dialog'
+import { imageStorageService } from '@/services/ImageStorageService'
+import {
+  insertImageNode,
+  countImagesInEditor,
+  isImageExtension,
+  getExtensionFromPath,
+} from '@/components/internal/SessionDetail/utils/editorImageUtils'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface ActiveSessionInputProps {
   session: Session
@@ -229,6 +238,33 @@ export const ActiveSessionInput = forwardRef<
       }
     }, [isDenying, ref])
 
+    // Handle importing an image file (from drop or picker)
+    const handleImportImageFile = useCallback(
+      async (filePath: string) => {
+        if (!responseEditor || responseEditor.isDestroyed) {
+          return false
+        }
+
+        // Check image count limit
+        const currentCount = countImagesInEditor(responseEditor)
+        if (!imageStorageService.canAddMoreImages(currentCount)) {
+          toast.error(`Maximum ${imageStorageService.getMaxImagesPerResponse()} images allowed`)
+          return false
+        }
+
+        try {
+          const savedImage = await imageStorageService.importExternalImage(session.id, filePath)
+          insertImageNode(responseEditor, savedImage)
+          return true
+        } catch (error: any) {
+          toast.error(error.message || 'Failed to import image')
+          logger.error('[ActiveSessionInput] Failed to import image:', error)
+          return false
+        }
+      },
+      [responseEditor, session.id],
+    )
+
     // Setup drag and drop handling
     useEffect(() => {
       let unlisten: UnlistenFn | undefined
@@ -237,7 +273,7 @@ export const ActiveSessionInput = forwardRef<
 
       ;(async () => {
         try {
-          const unlistenFn = await getCurrentWebview().onDragDropEvent(event => {
+          const unlistenFn = await getCurrentWebview().onDragDropEvent(async event => {
             if (!mounted) {
               return
             }
@@ -245,7 +281,6 @@ export const ActiveSessionInput = forwardRef<
             if (event.payload.type === 'over') {
               setIsDragHover(true)
             } else if (event.payload.type === 'drop') {
-              // Insert dropped files as mentions
               const filePaths = event.payload.paths as string[]
               if (responseEditor && filePaths.length > 0) {
                 // Check editor health before proceeding
@@ -257,32 +292,52 @@ export const ActiveSessionInput = forwardRef<
                   return
                 }
 
-                // Build content array with mentions
-                const content: any[] = []
+                // Separate image files from other files
+                const imageFiles: string[] = []
+                const otherFiles: string[] = []
 
-                filePaths.forEach((filePath, index) => {
-                  const fileName = filePath.split('/').pop() || filePath
-
-                  // Add space before mention if not first file
-                  if (index > 0) {
-                    content.push({ type: 'text', text: ' ' })
+                for (const filePath of filePaths) {
+                  const ext = getExtensionFromPath(filePath)
+                  if (isImageExtension(ext)) {
+                    imageFiles.push(filePath)
+                  } else {
+                    otherFiles.push(filePath)
                   }
+                }
 
-                  // Add the mention
-                  content.push({
-                    type: 'mention',
-                    attrs: {
-                      id: filePath, // Full path for functionality
-                      label: fileName, // Display name for UI
-                    },
+                // Handle image files - import them to session directory
+                for (const imagePath of imageFiles) {
+                  await handleImportImageFile(imagePath)
+                }
+
+                // Handle other files as mentions (existing behavior)
+                if (otherFiles.length > 0) {
+                  const content: any[] = []
+
+                  otherFiles.forEach((filePath, index) => {
+                    const fileName = filePath.split('/').pop() || filePath
+
+                    // Add space before mention if not first file
+                    if (index > 0) {
+                      content.push({ type: 'text', text: ' ' })
+                    }
+
+                    // Add the mention
+                    content.push({
+                      type: 'mention',
+                      attrs: {
+                        id: filePath, // Full path for functionality
+                        label: fileName, // Display name for UI
+                      },
+                    })
                   })
-                })
 
-                // Add a space after all mentions
-                content.push({ type: 'text', text: ' ' })
+                  // Add a space after all mentions
+                  content.push({ type: 'text', text: ' ' })
 
-                // Insert all mentions at once
-                responseEditor.chain().focus().insertContent(content).run()
+                  // Insert all mentions at once
+                  responseEditor.chain().focus().insertContent(content).run()
+                }
               }
 
               setIsDragHover(false)
@@ -315,7 +370,104 @@ export const ActiveSessionInput = forwardRef<
           }
         }
       }
-    }, [responseEditor])
+    }, [responseEditor, handleImportImageFile])
+
+    // Handle clipboard paste for images
+    useEffect(() => {
+      if (!responseEditor || responseEditor.isDestroyed) {
+        return
+      }
+
+      const handlePaste = async (e: ClipboardEvent) => {
+        const items = e.clipboardData?.items
+        if (!items) return
+
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            e.preventDefault()
+
+            const blob = item.getAsFile()
+            if (!blob) continue
+
+            // Check image count limit
+            const currentCount = countImagesInEditor(responseEditor)
+            if (!imageStorageService.canAddMoreImages(currentCount)) {
+              toast.error(`Maximum ${imageStorageService.getMaxImagesPerResponse()} images allowed`)
+              return
+            }
+
+            // Validate image
+            const validation = imageStorageService.validateImage(blob)
+            if (!validation.valid) {
+              toast.error(validation.error || 'Invalid image')
+              return
+            }
+
+            try {
+              const savedImage = await imageStorageService.saveImage(session.id, blob, item.type)
+              insertImageNode(responseEditor, savedImage)
+            } catch (error: any) {
+              toast.error(error.message || 'Failed to save image')
+              logger.error('[ActiveSessionInput] Failed to save pasted image:', error)
+            }
+          }
+        }
+      }
+
+      // Add paste listener to the editor's DOM element
+      const editorElement = responseEditor.view.dom
+      editorElement.addEventListener('paste', handlePaste)
+
+      return () => {
+        editorElement.removeEventListener('paste', handlePaste)
+      }
+    }, [responseEditor, session.id])
+
+    // Handle image picker button click
+    const handleImagePicker = useCallback(async () => {
+      if (!responseEditor || responseEditor.isDestroyed) {
+        return
+      }
+
+      // Check image count limit
+      const currentCount = countImagesInEditor(responseEditor)
+      if (!imageStorageService.canAddMoreImages(currentCount)) {
+        toast.error(`Maximum ${imageStorageService.getMaxImagesPerResponse()} images allowed`)
+        return
+      }
+
+      try {
+        const selected = await open({
+          multiple: true,
+          filters: [
+            {
+              name: 'Images',
+              extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'],
+            },
+          ],
+        })
+
+        if (selected) {
+          const paths = Array.isArray(selected) ? selected : [selected]
+          for (const path of paths) {
+            // Check limit for each image
+            const count = countImagesInEditor(responseEditor)
+            if (!imageStorageService.canAddMoreImages(count)) {
+              toast.error(`Maximum ${imageStorageService.getMaxImagesPerResponse()} images reached`)
+              break
+            }
+            await handleImportImageFile(path)
+          }
+        }
+      } catch (error: any) {
+        // User cancelled the dialog - this is not an error
+        if (error.message?.includes('cancel')) {
+          return
+        }
+        toast.error('Failed to open file picker')
+        logger.error('[ActiveSessionInput] Image picker error:', error)
+      }
+    }, [responseEditor, handleImportImageFile])
 
     // Track previous session ID for defensive saving
     const prevSessionIdRef = useRef(session.id)
@@ -631,6 +783,24 @@ export const ActiveSessionInput = forwardRef<
                     </div>
                   )}
                 </SentryErrorBoundary>
+
+                {/* Image picker button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 self-end shrink-0"
+                      onClick={handleImagePicker}
+                      disabled={isResponding}
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>Attach image (or paste/drag-drop)</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               {/* Action buttons and submit */}

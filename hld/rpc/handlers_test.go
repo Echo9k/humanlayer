@@ -798,10 +798,10 @@ func TestHandleUpdateSessionSettings(t *testing.T) {
 
 		// Expect each approval to be auto-approved
 		mockApprovalManager.EXPECT().
-			ApproveToolCall(gomock.Any(), "approval-1", "Auto-approved due to bypass permissions").
+			ApproveToolCall(gomock.Any(), "approval-1", "Auto-approved due to bypass permissions", nil).
 			Return(nil)
 		mockApprovalManager.EXPECT().
-			ApproveToolCall(gomock.Any(), "approval-2", "Auto-approved due to bypass permissions").
+			ApproveToolCall(gomock.Any(), "approval-2", "Auto-approved due to bypass permissions", nil).
 			Return(nil)
 
 		req := UpdateSessionSettingsRequest{

@@ -113,10 +113,10 @@ export class HLDClient {
         return response.data;
     }
 
-    async decideApproval(id: string, decision: 'approve' | 'deny', comment?: string): Promise<void> {
+    async decideApproval(id: string, decision: 'approve' | 'deny', comment?: string, options?: { imagePaths?: string[] }): Promise<void> {
         await this.approvalsApi.decideApproval({
             id,
-            decideApprovalRequest: { decision, comment }
+            decideApprovalRequest: { decision, comment, imagePaths: options?.imagePaths }
         });
     }
 

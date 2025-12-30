@@ -147,7 +147,7 @@ func (m *manager) GetApproval(ctx context.Context, id string) (*store.Approval, 
 }
 
 // ApproveToolCall approves a tool call
-func (m *manager) ApproveToolCall(ctx context.Context, id string, comment string) error {
+func (m *manager) ApproveToolCall(ctx context.Context, id string, comment string, imagePaths []string) error {
 	// Get the approval first
 	approval, err := m.store.GetApproval(ctx, id)
 	if err != nil {
@@ -178,13 +178,14 @@ func (m *manager) ApproveToolCall(ctx context.Context, id string, comment string
 
 	slog.Info("approved tool call",
 		"approval_id", id,
-		"comment", comment)
+		"comment", comment,
+		"image_paths", imagePaths)
 
 	return nil
 }
 
 // DenyToolCall denies a tool call
-func (m *manager) DenyToolCall(ctx context.Context, id string, reason string) error {
+func (m *manager) DenyToolCall(ctx context.Context, id string, reason string, imagePaths []string) error {
 	// Get the approval first
 	approval, err := m.store.GetApproval(ctx, id)
 	if err != nil {
@@ -215,7 +216,8 @@ func (m *manager) DenyToolCall(ctx context.Context, id string, reason string) er
 
 	slog.Info("denied tool call",
 		"approval_id", id,
-		"reason", reason)
+		"reason", reason,
+		"image_paths", imagePaths)
 
 	return nil
 }

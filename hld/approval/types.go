@@ -20,6 +20,7 @@ type Manager interface {
 	GetApproval(ctx context.Context, id string) (*store.Approval, error)
 
 	// Decision methods
-	ApproveToolCall(ctx context.Context, id string, comment string) error
-	DenyToolCall(ctx context.Context, id string, reason string) error
+	// imagePaths contains local file paths to images attached to the decision
+	ApproveToolCall(ctx context.Context, id string, comment string, imagePaths []string) error
+	DenyToolCall(ctx context.Context, id string, reason string, imagePaths []string) error
 }

@@ -117,9 +117,10 @@ func (h *ApprovalHandlers) HandleFetchApprovals(ctx context.Context, params json
 
 // SendDecisionRequest is the request for sending a decision
 type SendDecisionRequest struct {
-	ApprovalID string `json:"approval_id"`
-	Decision   string `json:"decision"`
-	Comment    string `json:"comment,omitempty"`
+	ApprovalID string   `json:"approval_id"`
+	Decision   string   `json:"decision"`
+	Comment    string   `json:"comment,omitempty"`
+	ImagePaths []string `json:"image_paths,omitempty"`
 }
 
 // SendDecisionResponse is the response for sending a decision
@@ -147,12 +148,12 @@ func (h *ApprovalHandlers) HandleSendDecision(ctx context.Context, params json.R
 
 	switch req.Decision {
 	case "approve":
-		err = h.approvals.ApproveToolCall(ctx, req.ApprovalID, req.Comment)
+		err = h.approvals.ApproveToolCall(ctx, req.ApprovalID, req.Comment, req.ImagePaths)
 	case "deny":
 		if req.Comment == "" {
 			return nil, fmt.Errorf("comment is required for denial")
 		}
-		err = h.approvals.DenyToolCall(ctx, req.ApprovalID, req.Comment)
+		err = h.approvals.DenyToolCall(ctx, req.ApprovalID, req.Comment, req.ImagePaths)
 	default:
 		return nil, fmt.Errorf("invalid decision: %s (must be 'approve' or 'deny')", req.Decision)
 	}

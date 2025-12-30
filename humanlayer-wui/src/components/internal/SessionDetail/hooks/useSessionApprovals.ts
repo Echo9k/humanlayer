@@ -8,6 +8,7 @@ import { useStore } from '@/AppStore'
 import { ResponseInputLocalStorageKey } from './useSessionActions'
 import { usePostHogTracking } from '@/hooks/usePostHogTracking'
 import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
+import { extractImagesFromEditor } from '../utils/editorImageUtils'
 
 /*
   Much of this state-based code should be ported to Zustand.
@@ -80,7 +81,11 @@ export function useSessionApprovals({
     async (approvalId: string, reason: string, sessionId: string) => {
       const startTime = Date.now()
       try {
-        const res = await daemonClient.denyFunctionCall(approvalId, reason)
+        // Extract image paths from the editor before sending
+        const images = extractImagesFromEditor(responseEditor)
+        const imagePaths = images.map(img => img.filePath)
+
+        const res = await daemonClient.denyFunctionCall(approvalId, reason, imagePaths)
         console.log('handleDeny()', res)
 
         if (res.success) {
@@ -91,6 +96,7 @@ export function useSessionApprovals({
           trackEvent(POSTHOG_EVENTS.APPROVAL_RESPONDED, {
             response: 'reject',
             response_time_ms: Date.now() - startTime,
+            image_count: imagePaths.length,
           })
         } else {
           console.log('WHAT', res)

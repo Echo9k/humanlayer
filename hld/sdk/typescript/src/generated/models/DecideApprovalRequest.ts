@@ -31,6 +31,15 @@ export interface DecideApprovalRequest {
      * @memberof DecideApprovalRequest
      */
     comment?: string;
+    /**
+     * Local file paths to images attached to this decision.
+     * Daemon will read, validate, and encode these for Claude.
+     * Maximum 5 images allowed.
+     * 
+     * @type {Array<string>}
+     * @memberof DecideApprovalRequest
+     */
+    imagePaths?: Array<string>;
 }
 
 
@@ -64,6 +73,7 @@ export function DecideApprovalRequestFromJSONTyped(json: any, ignoreDiscriminato
         
         'decision': json['decision'],
         'comment': json['comment'] == null ? undefined : json['comment'],
+        'imagePaths': json['image_paths'] == null ? undefined : json['image_paths'],
     };
 }
 
@@ -80,6 +90,7 @@ export function DecideApprovalRequestToJSONTyped(value?: DecideApprovalRequest |
         
         'decision': value['decision'],
         'comment': value['comment'],
+        'image_paths': value['imagePaths'],
     };
 }
 

@@ -10,6 +10,7 @@ import {
   Content,
   EditorContent,
   Extension,
+  Node,
   ReactNodeViewRenderer,
   ReactRenderer,
   useEditor,
@@ -32,6 +33,7 @@ import { createLowlight } from 'lowlight'
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { FileMentionNode } from './FileMentionNode'
 import { FuzzyFileMentionList } from './FuzzyFileMentionList'
+import { ImageNode } from './ImageNode'
 import { SlashCommandList } from './SlashCommandList'
 
 // Export regex patterns for markdown italic syntax
@@ -446,6 +448,67 @@ const KeyboardShortcuts = Extension.create({
   },
 })
 
+// Custom Node for image attachments
+const ImageAttachmentNode = Node.create({
+  name: 'imageAttachment',
+  group: 'inline',
+  inline: true,
+  atom: true, // Treated as a single unit, not editable content
+
+  addAttributes() {
+    return {
+      filePath: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-file-path'),
+        renderHTML: (attributes: any) => {
+          if (!attributes.filePath) return {}
+          return { 'data-file-path': attributes.filePath }
+        },
+      },
+      fileName: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-file-name'),
+        renderHTML: (attributes: any) => {
+          if (!attributes.fileName) return {}
+          return { 'data-file-name': attributes.fileName }
+        },
+      },
+      mimeType: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-mime-type'),
+        renderHTML: (attributes: any) => {
+          if (!attributes.mimeType) return {}
+          return { 'data-mime-type': attributes.mimeType }
+        },
+      },
+      thumbnailDataUrl: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-thumbnail'),
+        renderHTML: (attributes: any) => {
+          if (!attributes.thumbnailDataUrl) return {}
+          return { 'data-thumbnail': attributes.thumbnailDataUrl }
+        },
+      },
+    }
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'span[data-image-attachment]',
+      },
+    ]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['span', { ...HTMLAttributes, 'data-image-attachment': 'true' }]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageNode as any)
+  },
+})
+
 interface ResponseEditorProps {
   initialValue: Content | null
   onChange: (value: Content) => void
@@ -554,6 +617,8 @@ export const ResponseEditor = forwardRef<{ focus: () => void; blur?: () => void 
         Placeholder.configure({
           placeholder: staticPlaceholderRef.current,
         }),
+        // Image attachment Node extension
+        ImageAttachmentNode,
         // Slash command Mention extension
         Mention.extend({
           name: 'slash-command',

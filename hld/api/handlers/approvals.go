@@ -163,12 +163,18 @@ func (h *ApprovalHandlers) DecideApproval(ctx context.Context, req api.DecideApp
 		comment = *req.Body.Comment
 	}
 
+	// Extract image paths (optional)
+	var imagePaths []string
+	if req.Body.ImagePaths != nil {
+		imagePaths = *req.Body.ImagePaths
+	}
+
 	var err error
 	switch req.Body.Decision {
 	case api.Approve:
-		err = h.approvalManager.ApproveToolCall(ctx, string(req.Id), comment)
+		err = h.approvalManager.ApproveToolCall(ctx, string(req.Id), comment, imagePaths)
 	case api.Deny:
-		err = h.approvalManager.DenyToolCall(ctx, string(req.Id), comment)
+		err = h.approvalManager.DenyToolCall(ctx, string(req.Id), comment, imagePaths)
 	default:
 		return api.DecideApproval400JSONResponse{
 			Error: api.ErrorDetail{
