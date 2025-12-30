@@ -160,6 +160,22 @@ export class HLDClient {
         return { archived: sessionIds.filter(id => !response.data.failedSessions?.includes(id)) };
     }
 
+    // Delete session permanently (must be archived first)
+    async deleteSession(id: string): Promise<void> {
+        await this.sessionsApi.deleteSession({ id });
+    }
+
+    // Bulk delete sessions permanently (must be archived first)
+    async bulkDeleteSessions(sessionIds: string[]): Promise<{ deleted: string[]; failedSessions?: string[] }> {
+        const response = await this.sessionsApi.bulkDeleteSessions({
+            bulkDeleteRequest: { sessionIds }
+        });
+        return {
+            deleted: response.data.deleted,
+            failedSessions: response.data.failedSessions
+        };
+    }
+
     // Bulk restore drafts
     async bulkRestoreDrafts(params: { session_ids: string[] }): Promise<{ success: boolean; failed_sessions?: string[] }> {
         const response = await this.sessionsApi.bulkRestoreDrafts({

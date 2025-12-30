@@ -17,7 +17,8 @@ The application uses a hierarchical hotkey scope system built on top of `react-h
 │       ├── sessions.details.archived - Archived session detail
 │       ├── sessions.details.forkModal - Fork modal (isolates root)
 │       ├── sessions.details.toolResultModal - Tool result modal
-│       └── sessions.details.bypassPermissionsModal - Permissions modal
+│       ├── sessions.details.bypassPermissionsModal - Permissions modal
+│       └── sessions.deleteConfirmationDialog - Delete confirmation dialog
 ├── themeSelector    - Theme selection dropdown (isolates all)
 ├── settingsModal    - Settings dialog (isolates all)
 ├── sessionLauncher  - Session launcher modal
@@ -198,6 +199,7 @@ The system handles StrictMode double-mounting automatically through:
 - `Shift+K` - Select upward
 - `Enter` - Open session
 - `E` - Archive/unarchive
+- `D,D` - Delete archived session permanently (vim-style)
 - `Shift+R` - Rename session
 - `Tab` - Toggle normal/archived view
 - `Escape` - Exit archived view
@@ -216,6 +218,7 @@ The system handles StrictMode double-mounting automatically through:
 - `A` - Approve pending request
 - `D` - Deny pending request
 - `E` - Archive session
+- `D,D` - Delete archived session permanently (vim-style)
 - `Shift+R` - Rename session
 - `Ctrl+X` - Interrupt session
 - `P` - Go to parent session

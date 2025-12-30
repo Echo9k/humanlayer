@@ -49,6 +49,8 @@ export default function CommandPaletteMenu({ ref }: { ref: RefObject<HTMLDivElem
   const activeSessionDetail = useStore(state => state.activeSessionDetail)
   const archiveSession = useStore(state => state.archiveSession)
   const bulkArchiveSessions = useStore(state => state.bulkArchiveSessions)
+  const deleteSession = useStore(state => state.deleteSession)
+  const bulkDeleteSessions = useStore(state => state.bulkDeleteSessions)
   const setSettingsDialogOpen = useStore(state => state.setSettingsDialogOpen)
   const setHotkeyPanelOpen = useStore(state => state.setHotkeyPanelOpen)
 
@@ -59,6 +61,21 @@ export default function CommandPaletteMenu({ ref }: { ref: RefObject<HTMLDivElem
   const isSessionTable = !isSessionDetail && window.location.hash === '#/'
   const shouldShowArchive =
     isSessionDetail || (isSessionTable && (focusedSession || selectedSessions.size > 0))
+
+  // Check if we should show delete option (only for archived sessions)
+  const canDelete = (): boolean => {
+    if (isSessionDetail && activeSessionDetail) {
+      return activeSessionDetail.session.archived === true
+    } else if (selectedSessions.size > 0) {
+      const sessionIds = Array.from(selectedSessions)
+      const sessionsToCheck = sessions.filter(s => sessionIds.includes(s.id))
+      return sessionsToCheck.every(s => s.archived === true)
+    } else if (focusedSession) {
+      return focusedSession.archived === true
+    }
+    return false
+  }
+  const shouldShowDelete = canDelete()
 
   // Determine if we should show unarchive instead of archive
   const getArchiveLabel = (): string => {
@@ -158,6 +175,32 @@ export default function CommandPaletteMenu({ ref }: { ref: RefObject<HTMLDivElem
               }
             },
             hotkey: 'E',
+          },
+        ]
+      : []),
+    ...(shouldShowDelete
+      ? [
+          {
+            id: 'delete-session',
+            label: 'Delete Permanently',
+            description: 'Permanently delete archived session(s)',
+            action: async () => {
+              if (isSessionDetail && activeSessionDetail) {
+                // Delete current session in detail view
+                await deleteSession(activeSessionDetail.session.id)
+                close()
+              } else if (selectedSessions.size > 0) {
+                // Bulk delete selected sessions
+                const sessionIds = Array.from(selectedSessions)
+                await bulkDeleteSessions(sessionIds)
+                close()
+              } else if (focusedSession) {
+                // Delete focused session
+                await deleteSession(focusedSession.id)
+                close()
+              }
+            },
+            hotkey: 'D,D',
           },
         ]
       : []),

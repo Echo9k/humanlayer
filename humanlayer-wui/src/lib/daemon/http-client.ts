@@ -436,6 +436,24 @@ export class HTTPDaemonClient implements IDaemonClient {
     }
   }
 
+  async deleteSession(sessionId: string): Promise<{ success: boolean }> {
+    await this.ensureConnected()
+    await this.client!.deleteSession(sessionId)
+    return { success: true }
+  }
+
+  async bulkDeleteSessions(
+    sessionIds: string[],
+  ): Promise<{ success: boolean; deleted: string[]; failed_sessions?: string[] }> {
+    await this.ensureConnected()
+    const result = await this.client!.bulkDeleteSessions(sessionIds)
+    return {
+      success: !result.failedSessions || result.failedSessions.length === 0,
+      deleted: result.deleted,
+      failed_sessions: result.failedSessions,
+    }
+  }
+
   async bulkRestoreDrafts(params: { session_ids: string[] }): Promise<{
     success: boolean
     failed_sessions?: string[]
