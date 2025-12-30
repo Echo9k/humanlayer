@@ -46,6 +46,7 @@ const ALLOWED_KEYS = [
   'response_time_ms',
   'tool_type',
   'timeout_seconds',
+  'image_count',
 
   // UI interaction properties
   'trigger_method',
