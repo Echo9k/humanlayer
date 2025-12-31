@@ -9,11 +9,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	claudecode "github.com/humanlayer/humanlayer/claudecode-go"
+	"gopkg.in/yaml.v3"
 	"github.com/humanlayer/humanlayer/hld/api"
 	"github.com/humanlayer/humanlayer/hld/api/mapper"
 	"github.com/humanlayer/humanlayer/hld/approval"
@@ -32,6 +34,12 @@ type SessionHandlers struct {
 	version         string
 	config          *config.Config
 	sessionManager  session.SessionManager // Add reference to session manager for Claude status checks
+}
+
+// CommandFrontmatter represents the YAML frontmatter in command files
+type CommandFrontmatter struct {
+	Description string `yaml:"description,omitempty"`
+	Model       string `yaml:"model,omitempty"`
 }
 
 func NewSessionHandlers(manager session.SessionManager, store store.ConversationStore, approvalManager approval.Manager) *SessionHandlers {
@@ -1691,21 +1699,41 @@ func (h *SessionHandlers) GetSlashCommands(ctx context.Context, req api.GetSlash
 				commandName = strings.ReplaceAll(commandName, string(filepath.Separator), ":")
 				fullCommandName := "/" + commandName
 
+				// Read file content to extract frontmatter
+				var description, model string
+				content, err := os.ReadFile(path)
+				if err == nil {
+					// Extract YAML frontmatter (between --- markers)
+					frontmatterRegex := regexp.MustCompile(`(?s)^---\n(.+?)\n---`)
+					matches := frontmatterRegex.FindSubmatch(content)
+					if len(matches) >= 2 {
+						var frontmatter CommandFrontmatter
+						if err := yaml.Unmarshal(matches[1], &frontmatter); err == nil {
+							description = frontmatter.Description
+							model = frontmatter.Model
+						}
+					}
+				}
+
 				// Check if command already exists
 				if _, exists := commandMap[fullCommandName]; exists {
 					// Global commands take precedence
 					if source == api.SlashCommandSourceGlobal {
 						commandMap[fullCommandName] = api.SlashCommand{
-							Name:   fullCommandName,
-							Source: source,
+							Name:        fullCommandName,
+							Source:      source,
+							Description: &description,
+							Model:       &model,
 						}
 					}
 					// If source is "local" and global already exists, do nothing (global wins)
 				} else {
 					// New command, add it
 					commandMap[fullCommandName] = api.SlashCommand{
-						Name:   fullCommandName,
-						Source: source,
+						Name:        fullCommandName,
+						Source:      source,
+						Description: &description,
+						Model:       &model,
 					}
 				}
 			}

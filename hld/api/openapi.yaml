@@ -2008,6 +2008,14 @@ components:
           enum: ["local", "global"]
           description: Source of the command - local (repo) or global (user home)
           example: "local"
+        description:
+          type: string
+          description: Command description from YAML frontmatter
+          example: "Create detailed implementation plans through interactive research"
+        model:
+          type: string
+          description: Recommended model from YAML frontmatter
+          example: "opus"
 
     SlashCommandsResponse:
       type: object

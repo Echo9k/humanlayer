@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ThemeSelector } from '@/components/ThemeSelector'
 import { HotkeyPanel } from '@/components/HotkeyPanel'
+import { CommandsHelperModal } from '@/components/CommandsHelperModal'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { OptInTelemetryModal } from '@/components/OptInTelemetryModal'
@@ -32,7 +33,7 @@ import { notificationService, type NotificationOptions } from '@/services/Notifi
 import { useTheme } from '@/contexts/ThemeContext'
 import { formatMcpToolName, getSessionNotificationText } from '@/utils/formatting'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { MessageCircle, Bug, HelpCircle, Settings, AlertCircle, RefreshCw } from 'lucide-react'
+import { MessageCircle, Bug, HelpCircle, BookOpen, Settings, AlertCircle, RefreshCw } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { DebugPanel } from '@/components/DebugPanel'
 import { notifyLogLocation } from '@/lib/log-notification'
@@ -66,6 +67,9 @@ export function Layout() {
 
   // Hotkey panel state from store
   const { isHotkeyPanelOpen, setHotkeyPanelOpen } = useStore()
+
+  // Commands helper state from store
+  const { isCommandsHelperOpen, setCommandsHelperOpen } = useStore()
 
   // PostHog tracking
   const { trackEvent } = usePostHogTracking()
@@ -1030,6 +1034,22 @@ export function Layout() {
             <TooltipTrigger asChild>
               <button
                 onClick={() => {
+                  trackEvent(POSTHOG_EVENTS.COMMANDS_HELPER_OPENED, {})
+                  setCommandsHelperOpen(true)
+                }}
+                className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-mono border border-border bg-background text-foreground hover:bg-accent/10 transition-colors focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+              >
+                <BookOpen className="w-3 h-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>View available commands</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => {
                   // Track hotkey helper viewed event when opening
                   trackEvent(POSTHOG_EVENTS.HOTKEY_HELPER_VIEWED, {})
                   setHotkeyPanelOpen(true)
@@ -1096,6 +1116,9 @@ export function Layout() {
 
       {/* Hotkey Panel */}
       <HotkeyPanel open={isHotkeyPanelOpen} onOpenChange={setHotkeyPanelOpen} />
+
+      {/* Commands Helper Modal */}
+      <CommandsHelperModal open={isCommandsHelperOpen} onOpenChange={setCommandsHelperOpen} />
 
       {/* Notifications */}
       <CodeLayerToaster />

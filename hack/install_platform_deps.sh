@@ -42,6 +42,22 @@ case "$(uname -s)" in
                             }
                             echo "✅ Tauri dependencies installed successfully"
                         fi
+
+                        # Install linuxdeploy and appimagetool for AppImage bundling
+                        if ! command_exists linuxdeploy; then
+                            echo "Installing linuxdeploy for AppImage bundling from GitHub..."
+                            curl -L https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -o /tmp/linuxdeploy
+                            chmod +x /tmp/linuxdeploy
+                            sudo mv /tmp/linuxdeploy /usr/local/bin/linuxdeploy
+                        fi
+
+                        if ! command_exists appimagetool; then
+                            echo "Installing appimagetool for AppImage bundling from GitHub..."
+                            curl -L https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o /tmp/appimagetool
+                            chmod +x /tmp/appimagetool
+                            sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+                        fi
+                        echo "✅ Linux AppImage tools installed successfully"
                     else
                         echo "❌ pacman not found. Please install dependencies manually."
                         exit 1
@@ -63,6 +79,28 @@ case "$(uname -s)" in
                             }
                             echo "✅ Tauri dependencies installed successfully"
                         fi
+
+                        # Install linuxdeploy and appimagetool for AppImage bundling
+                        if ! command_exists linuxdeploy; then
+                            echo "Installing linuxdeploy for AppImage bundling..."
+                            sudo apt-get install -y linuxdeploy || {
+                                echo "⚠️  linuxdeploy not available in apt, installing from GitHub..."
+                                curl -L https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -o /tmp/linuxdeploy
+                                chmod +x /tmp/linuxdeploy
+                                sudo mv /tmp/linuxdeploy /usr/local/bin/linuxdeploy
+                            }
+                        fi
+
+                        if ! command_exists appimagetool; then
+                            echo "Installing appimagetool for AppImage bundling..."
+                            sudo apt-get install -y appimagetool || {
+                                echo "⚠️  appimagetool not available in apt, installing from GitHub..."
+                                curl -L https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o /tmp/appimagetool
+                                chmod +x /tmp/appimagetool
+                                sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+                            }
+                        fi
+                        echo "✅ Linux AppImage tools installed successfully"
                     else
                         echo "❌ apt-get not found. Please install dependencies manually."
                         exit 1
@@ -70,26 +108,44 @@ case "$(uname -s)" in
                     ;;
                 fedora|rhel|centos)
                     echo "Detected Fedora/RHEL-based distribution"
+                    PKG_MGR=""
                     if command_exists dnf; then
+                        PKG_MGR="dnf"
                         echo "Installing Tauri dependencies via dnf..."
                         sudo dnf install -y webkit2gtk4.1-devel openssl-devel curl wget file gcc gcc-c++ make gtk3-devel libappindicator-gtk3-devel librsvg2-devel || {
                             echo "❌ Failed to install packages. Please run manually:"
                             echo "   sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file gcc gcc-c++ make gtk3-devel libappindicator-gtk3-devel librsvg2-devel"
                             exit 1
                         }
-                        echo "✅ Tauri dependencies installed successfully"
                     elif command_exists yum; then
+                        PKG_MGR="yum"
                         echo "Installing Tauri dependencies via yum..."
                         sudo yum install -y webkit2gtk4.1-devel openssl-devel curl wget file gcc gcc-c++ make gtk3-devel libappindicator-gtk3-devel librsvg2-devel || {
                             echo "❌ Failed to install packages. Please run manually:"
                             echo "   sudo yum install webkit2gtk4.1-devel openssl-devel curl wget file gcc gcc-c++ make gtk3-devel libappindicator-gtk3-devel librsvg2-devel"
                             exit 1
                         }
-                        echo "✅ Tauri dependencies installed successfully"
                     else
                         echo "❌ Neither dnf nor yum found. Please install dependencies manually."
                         exit 1
                     fi
+                    echo "✅ Tauri dependencies installed successfully"
+
+                    # Install linuxdeploy and appimagetool for AppImage bundling
+                    if ! command_exists linuxdeploy; then
+                        echo "Installing linuxdeploy for AppImage bundling from GitHub..."
+                        curl -L https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -o /tmp/linuxdeploy
+                        chmod +x /tmp/linuxdeploy
+                        sudo mv /tmp/linuxdeploy /usr/local/bin/linuxdeploy
+                    fi
+
+                    if ! command_exists appimagetool; then
+                        echo "Installing appimagetool for AppImage bundling from GitHub..."
+                        curl -L https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o /tmp/appimagetool
+                        chmod +x /tmp/appimagetool
+                        sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+                    fi
+                    echo "✅ Linux AppImage tools installed successfully"
                     ;;
                 opensuse*|sles)
                     echo "Detected openSUSE/SLES"
@@ -101,6 +157,22 @@ case "$(uname -s)" in
                             exit 1
                         }
                         echo "✅ Tauri dependencies installed successfully"
+
+                        # Install linuxdeploy and appimagetool for AppImage bundling
+                        if ! command_exists linuxdeploy; then
+                            echo "Installing linuxdeploy for AppImage bundling from GitHub..."
+                            curl -L https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -o /tmp/linuxdeploy
+                            chmod +x /tmp/linuxdeploy
+                            sudo mv /tmp/linuxdeploy /usr/local/bin/linuxdeploy
+                        fi
+
+                        if ! command_exists appimagetool; then
+                            echo "Installing appimagetool for AppImage bundling from GitHub..."
+                            curl -L https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o /tmp/appimagetool
+                            chmod +x /tmp/appimagetool
+                            sudo mv /tmp/appimagetool /usr/local/bin/appimagetool
+                        fi
+                        echo "✅ Linux AppImage tools installed successfully"
                     else
                         echo "❌ zypper not found. Please install dependencies manually."
                         exit 1

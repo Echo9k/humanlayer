@@ -31,6 +31,18 @@ export interface SlashCommand {
      * @memberof SlashCommand
      */
     source: SlashCommandSourceEnum;
+    /**
+     * Command description from YAML frontmatter
+     * @type {string}
+     * @memberof SlashCommand
+     */
+    description?: string;
+    /**
+     * Recommended model from YAML frontmatter
+     * @type {string}
+     * @memberof SlashCommand
+     */
+    model?: string;
 }
 
 
@@ -65,6 +77,8 @@ export function SlashCommandFromJSONTyped(json: any, ignoreDiscriminator: boolea
         
         'name': json['name'],
         'source': json['source'],
+        'description': json['description'] == null ? undefined : json['description'],
+        'model': json['model'] == null ? undefined : json['model'],
     };
 }
 
@@ -81,6 +95,8 @@ export function SlashCommandToJSONTyped(value?: SlashCommand | null, ignoreDiscr
         
         'name': value['name'],
         'source': value['source'],
+        'description': value['description'],
+        'model': value['model'],
     };
 }
 
