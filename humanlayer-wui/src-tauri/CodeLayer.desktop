@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CodeLayer
+Exec=humanlayer-wui
+Icon=humanlayer-wui
+Comment=HumanLayer CodeLayer - AI Agent Approval Interface
+Categories=Utility;Development;
+Terminal=false
+StartupWMClass=humanlayer-wui
