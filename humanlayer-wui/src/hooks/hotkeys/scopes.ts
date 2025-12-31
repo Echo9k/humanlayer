@@ -14,6 +14,7 @@ export const HOTKEY_SCOPES = {
   SELECT_MODEL_MODAL: 'sessions.details.selectModelModal',
   DISCARD_DRAFT_DIALOG: 'sessions.details.discardDraftDialog',
   CREATE_DIRECTORY_DIALOG: 'sessions.details.createDirectoryDialog',
+  DELETE_CONFIRMATION_DIALOG: 'sessions.deleteConfirmationDialog',
   THEME_SELECTOR: 'themeSelector',
   KEYBOARD_HELPER: 'keyboardHelper',
   SETTINGS_MODAL: 'settingsModal',

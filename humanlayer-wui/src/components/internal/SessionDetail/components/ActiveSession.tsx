@@ -24,6 +24,9 @@ import { ForkViewModal } from './ForkViewModal'
 import { DangerouslySkipPermissionsDialog } from '../DangerouslySkipPermissionsDialog'
 import { AdditionalDirectoriesDropdown } from './AdditionalDirectoriesDropdown'
 import { OmniSpinner } from './OmniSpinner'
+import { DeleteSessionDialog } from './DeleteSessionDialog'
+import { usePostHogTracking } from '@/hooks/usePostHogTracking'
+import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
 
 // Import hooks
 import { useSessionActions } from '../hooks/useSessionActions'
@@ -61,7 +64,9 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
   const [confirmingArchive, setConfirmingArchive] = useState(false)
   const [dangerousSkipPermissionsDialogOpen, setDangerousSkipPermissionsDialogOpen] = useState(false)
   const [directoriesDropdownOpen, setDirectoriesDropdownOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
+  const { trackEvent } = usePostHogTracking()
   const responseEditor = useStore(state => state.responseEditor)
   const isEditingSessionTitle = useStore(state => state.isEditingSessionTitle)
   const setIsEditingSessionTitle = useStore(state => state.setIsEditingSessionTitle)
@@ -77,6 +82,7 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
   const sessionFromStore = useStore(state => state.sessions.find(s => s.id === session.id))
   const updateSessionOptimistic = useStore(state => state.updateSessionOptimistic)
   const fetchActiveSessionDetail = useStore(state => state.fetchActiveSessionDetail)
+  const deleteSession = useStore(state => state.deleteSession)
 
   // Get parent session's token data to display when current session doesn't have its own yet
   const parentSession = useStore(state =>
@@ -589,6 +595,50 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
     ],
   )
 
+  // Delete session hotkey (D,D - like vim's dd to delete a line)
+  useHotkeys(
+    'd>d',
+    async () => {
+      logger.log('[ActiveSession] delete hotkey "d>d" fired')
+
+      // Check if session is archived
+      if (!session.archived) {
+        toast.warning('Can only delete archived sessions', {
+          description: 'Please archive the session first before deleting.',
+        })
+        return
+      }
+
+      // Open confirmation dialog
+      setDeleteDialogOpen(true)
+    },
+    {
+      preventDefault: true,
+      scopes: [HOTKEY_SCOPES.SESSION_DETAIL, HOTKEY_SCOPES.SESSION_DETAIL_ARCHIVED],
+    },
+    [session.archived],
+  )
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    try {
+      await deleteSession(session.id)
+      toast.success('Session deleted permanently')
+      trackEvent(POSTHOG_EVENTS.SESSION_DELETED, { count: 1 })
+      onClose()
+    } catch (error) {
+      toast.error('Failed to delete session', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      })
+    } finally {
+      setDeleteDialogOpen(false)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+  }
+
   // Fork view hotkey (Meta+Y)
   useHotkeys(
     'meta+y, ctrl+y',
@@ -1015,6 +1065,14 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
           open={dangerousSkipPermissionsDialogOpen}
           onOpenChange={setDangerousSkipPermissionsDialogOpen}
           onConfirm={handleDangerousSkipPermissionsConfirm}
+        />
+
+        {/* Delete Session Dialog */}
+        <DeleteSessionDialog
+          open={deleteDialogOpen}
+          sessionCount={1}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
         />
       </section>
     </HotkeyScopeBoundary>

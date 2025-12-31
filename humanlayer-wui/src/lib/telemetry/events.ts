@@ -12,6 +12,7 @@ export const POSTHOG_EVENTS = {
   SESSION_ARCHIVED: 'session_archived',
   SESSION_UNARCHIVED: 'session_unarchived',
   SESSION_FORKED: 'session_forked',
+  SESSION_DELETED: 'session_deleted',
 
   // Draft management
   DRAFT_CREATED: 'draft_created',

@@ -1117,6 +1117,64 @@ func (s *SQLiteStore) applyMigrations() error {
 		slog.Info("Migration 22 applied successfully")
 	}
 
+	// Migration 23: Add approval_images table and image_paths column to approvals
+	if currentVersion < 23 {
+		slog.Info("Applying migration 23: Add approval_images table and image_paths column")
+
+		// Create approval_images table
+		_, err := s.db.Exec(`
+			CREATE TABLE IF NOT EXISTS approval_images (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				approval_id TEXT NOT NULL,
+				file_path TEXT NOT NULL,
+				mime_type TEXT NOT NULL,
+				size_bytes INTEGER NOT NULL,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (approval_id) REFERENCES approvals(id) ON DELETE CASCADE
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("migration 23 failed to create approval_images table: %w", err)
+		}
+
+		// Add index on approval_id for faster lookups
+		_, err = s.db.Exec(`
+			CREATE INDEX IF NOT EXISTS idx_approval_images_approval_id
+			ON approval_images(approval_id)
+		`)
+		if err != nil {
+			return fmt.Errorf("migration 23 failed to create approval_images index: %w", err)
+		}
+
+		// Add image_paths column to approvals table (JSON array of file paths)
+		// Check if column already exists first
+		var exists int
+		err = s.db.QueryRow(`
+			SELECT COUNT(*) FROM pragma_table_info('approvals') WHERE name = 'image_paths'
+		`).Scan(&exists)
+		if err != nil {
+			return fmt.Errorf("migration 23 failed to check image_paths column: %w", err)
+		}
+
+		if exists == 0 {
+			_, err = s.db.Exec(`ALTER TABLE approvals ADD COLUMN image_paths TEXT`)
+			if err != nil {
+				return fmt.Errorf("migration 23 failed to add image_paths column: %w", err)
+			}
+		}
+
+		// Record migration
+		_, err = s.db.Exec(`
+			INSERT INTO schema_version (version, description)
+			VALUES (23, 'Add approval_images table and image_paths column')
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to record migration 23: %w", err)
+		}
+
+		slog.Info("Migration 23 applied successfully")
+	}
+
 	return nil
 }
 
@@ -2899,6 +2957,65 @@ func (s *SQLiteStore) UpdateApprovalResponse(ctx context.Context, id string, sta
 	if rowsAffected == 0 {
 		// This shouldn't happen since we checked above, but just in case
 		return &NotFoundError{Type: "approval", ID: id}
+	}
+
+	return nil
+}
+
+// StoreApprovalImages stores image paths for an approval decision
+func (s *SQLiteStore) StoreApprovalImages(ctx context.Context, approvalID string, imagePaths []string) error {
+	if len(imagePaths) == 0 {
+		return nil // Nothing to store
+	}
+
+	// Store as JSON array in the approvals table
+	imagePathsJSON, err := json.Marshal(imagePaths)
+	if err != nil {
+		return fmt.Errorf("failed to marshal image paths: %w", err)
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+		UPDATE approvals SET image_paths = ? WHERE id = ?
+	`, string(imagePathsJSON), approvalID)
+	if err != nil {
+		return fmt.Errorf("failed to store image paths: %w", err)
+	}
+
+	// Also insert into approval_images table for detailed tracking
+	for _, path := range imagePaths {
+		// Try to get file info for size and mime type
+		var sizeBytes int64 = 0
+		var mimeType string = "image/unknown"
+
+		// Determine mime type from extension
+		ext := strings.ToLower(filepath.Ext(path))
+		switch ext {
+		case ".png":
+			mimeType = "image/png"
+		case ".jpg", ".jpeg":
+			mimeType = "image/jpeg"
+		case ".gif":
+			mimeType = "image/gif"
+		case ".webp":
+			mimeType = "image/webp"
+		}
+
+		// Try to get file size (best effort)
+		if info, err := os.Stat(path); err == nil {
+			sizeBytes = info.Size()
+		}
+
+		_, err = s.db.ExecContext(ctx, `
+			INSERT INTO approval_images (approval_id, file_path, mime_type, size_bytes)
+			VALUES (?, ?, ?, ?)
+		`, approvalID, path, mimeType, sizeBytes)
+		if err != nil {
+			// Log but don't fail - the JSON storage is the primary record
+			slog.Warn("Failed to insert approval image record",
+				"error", err,
+				"approval_id", approvalID,
+				"file_path", path)
+		}
 	}
 
 	return nil

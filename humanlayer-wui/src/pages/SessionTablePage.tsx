@@ -222,13 +222,10 @@ export function SessionTablePage() {
         const sessionText =
           sessionsToUpdate.length === 1 ? 'session' : `${sessionsToUpdate.length} sessions`
 
-        // Use toast from sonner
-        const { toast } = await import('sonner')
         toast.success(`Auto-accept edits ${action} for ${sessionText}`, {
           duration: 3000,
         })
       } catch (error) {
-        const { toast } = await import('sonner')
         toast.error('Failed to update auto-accept settings', {
           description: error instanceof Error ? error.message : 'Unknown error',
         })

@@ -862,7 +862,43 @@ func (h *SessionHandlers) HardDeleteEmptyDraftSession(ctx context.Context, req a
 		}, nil
 	}
 
+	// Cleanup session images (best effort, don't fail on error)
+	cleanupSessionImages(string(req.Id))
+
 	return api.HardDeleteEmptyDraftSession204Response{}, nil
+}
+
+// cleanupSessionImages removes the image directory for a session
+// This is best-effort - errors are logged but don't cause failure
+func cleanupSessionImages(sessionID string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		slog.Warn("failed to get home directory for image cleanup",
+			"error", err,
+			"session_id", sessionID)
+		return
+	}
+
+	imagesDir := filepath.Join(home, ".humanlayer", "images", sessionID)
+
+	// Check if directory exists
+	if _, err := os.Stat(imagesDir); os.IsNotExist(err) {
+		// No images directory for this session, nothing to clean up
+		return
+	}
+
+	// Remove the entire session images directory
+	if err := os.RemoveAll(imagesDir); err != nil {
+		slog.Warn("failed to cleanup session images",
+			"error", err,
+			"session_id", sessionID,
+			"path", imagesDir)
+		return
+	}
+
+	slog.Debug("cleaned up session images",
+		"session_id", sessionID,
+		"path", imagesDir)
 }
 
 // isDraftEmpty checks if a draft session has no meaningful content
@@ -1801,5 +1837,172 @@ func (h *SessionHandlers) SearchSessions(ctx context.Context, req api.SearchSess
 	// Return response
 	return api.SearchSessions200JSONResponse{
 		Data: apiSessions,
+	}, nil
+}
+
+// DeleteSession permanently deletes an archived session
+func (h *SessionHandlers) DeleteSession(ctx context.Context, req api.DeleteSessionRequestObject) (api.DeleteSessionResponseObject, error) {
+	// Get the session and verify it's archived
+	sess, err := h.store.GetSession(ctx, string(req.Id))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return api.DeleteSession404JSONResponse{
+				NotFoundJSONResponse: api.NotFoundJSONResponse{
+					Error: api.ErrorDetail{
+						Code:    "HLD-4012",
+						Message: "Session not found",
+					},
+				},
+			}, nil
+		}
+		slog.Error("Failed to get session for deletion",
+			"error", fmt.Sprintf("%v", err),
+			"session_id", req.Id,
+			"operation", "DeleteSession",
+		)
+		return api.DeleteSession500JSONResponse{
+			InternalErrorJSONResponse: api.InternalErrorJSONResponse{
+				Error: api.ErrorDetail{
+					Code:    "HLD-4013",
+					Message: err.Error(),
+				},
+			},
+		}, nil
+	}
+
+	// Check if session is archived
+	if !sess.Archived {
+		return api.DeleteSession400JSONResponse{
+			Error: api.ErrorDetail{
+				Code:    "HLD-4014",
+				Message: "Can only delete archived sessions. Archive the session first.",
+			},
+		}, nil
+	}
+
+	// Perform hard delete
+	err = h.store.HardDeleteSession(ctx, string(req.Id))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Session was already deleted (race condition)
+			return api.DeleteSession404JSONResponse{
+				NotFoundJSONResponse: api.NotFoundJSONResponse{
+					Error: api.ErrorDetail{
+						Code:    "HLD-4012",
+						Message: "Session not found",
+					},
+				},
+			}, nil
+		}
+		slog.Error("Failed to delete session",
+			"error", fmt.Sprintf("%v", err),
+			"session_id", req.Id,
+			"operation", "DeleteSession",
+		)
+		return api.DeleteSession500JSONResponse{
+			InternalErrorJSONResponse: api.InternalErrorJSONResponse{
+				Error: api.ErrorDetail{
+					Code:    "HLD-4015",
+					Message: fmt.Sprintf("Failed to delete session: %v", err),
+				},
+			},
+		}, nil
+	}
+
+	// Cleanup session images (best effort, don't fail on error)
+	cleanupSessionImages(string(req.Id))
+
+	return api.DeleteSession204Response{}, nil
+}
+
+// BulkDeleteSessions permanently deletes multiple archived sessions
+func (h *SessionHandlers) BulkDeleteSessions(ctx context.Context, req api.BulkDeleteSessionsRequestObject) (api.BulkDeleteSessionsResponseObject, error) {
+	sessionIds := req.Body.SessionIds
+	if len(sessionIds) == 0 {
+		return api.BulkDeleteSessions400JSONResponse{
+			BadRequestJSONResponse: api.BadRequestJSONResponse{
+				Error: api.ErrorDetail{
+					Code:    "HLD-4016",
+					Message: "No session IDs provided",
+				},
+			},
+		}, nil
+	}
+
+	deleted := make([]string, 0)
+	failed := make([]string, 0)
+
+	for _, sessionId := range sessionIds {
+		// Get session and check if archived
+		sess, err := h.store.GetSession(ctx, sessionId)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// Session doesn't exist, count as failed
+				failed = append(failed, sessionId)
+				continue
+			}
+			slog.Error("Failed to get session for bulk delete",
+				"error", fmt.Sprintf("%v", err),
+				"session_id", sessionId,
+				"operation", "BulkDeleteSessions",
+			)
+			failed = append(failed, sessionId)
+			continue
+		}
+
+		// Check if session is archived
+		if !sess.Archived {
+			slog.Warn("Cannot delete non-archived session",
+				"session_id", sessionId,
+				"operation", "BulkDeleteSessions",
+			)
+			failed = append(failed, sessionId)
+			continue
+		}
+
+		// Perform hard delete
+		err = h.store.HardDeleteSession(ctx, sessionId)
+		if err != nil {
+			slog.Error("Failed to hard delete session",
+				"error", fmt.Sprintf("%v", err),
+				"session_id", sessionId,
+				"operation", "BulkDeleteSessions",
+			)
+			failed = append(failed, sessionId)
+			continue
+		}
+
+		// Cleanup session images (best effort)
+		cleanupSessionImages(sessionId)
+		deleted = append(deleted, sessionId)
+	}
+
+	// Determine response code
+	success := len(failed) == 0
+	if len(failed) > 0 && len(deleted) > 0 {
+		// Partial success
+		return api.BulkDeleteSessions207JSONResponse{
+			Data: struct {
+				Deleted        []string `json:"deleted"`
+				FailedSessions *[]string `json:"failed_sessions,omitempty"`
+				Success        bool     `json:"success"`
+			}{
+				Success:        false,
+				Deleted:        deleted,
+				FailedSessions: &failed,
+			},
+		}, nil
+	}
+
+	return api.BulkDeleteSessions200JSONResponse{
+		Data: struct {
+			Deleted        []string `json:"deleted"`
+			FailedSessions *[]string `json:"failed_sessions,omitempty"`
+			Success        bool     `json:"success"`
+		}{
+			Success:        success,
+			Deleted:        deleted,
+			FailedSessions: func() *[]string { if len(failed) > 0 { return &failed }; return nil }(),
+		},
 	}, nil
 }

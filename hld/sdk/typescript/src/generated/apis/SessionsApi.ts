@@ -17,6 +17,8 @@ import * as runtime from '../runtime';
 import type {
   BulkArchiveRequest,
   BulkArchiveResponse,
+  BulkDeleteRequest,
+  BulkDeleteResponse,
   BulkRestoreDraftsRequest,
   BulkRestoreDraftsResponse,
   ContinueSessionRequest,
@@ -41,6 +43,10 @@ import {
     BulkArchiveRequestToJSON,
     BulkArchiveResponseFromJSON,
     BulkArchiveResponseToJSON,
+    BulkDeleteRequestFromJSON,
+    BulkDeleteRequestToJSON,
+    BulkDeleteResponseFromJSON,
+    BulkDeleteResponseToJSON,
     BulkRestoreDraftsRequestFromJSON,
     BulkRestoreDraftsRequestToJSON,
     BulkRestoreDraftsResponseFromJSON,
@@ -83,6 +89,10 @@ export interface BulkArchiveSessionsRequest {
     bulkArchiveRequest: BulkArchiveRequest;
 }
 
+export interface BulkDeleteSessionsRequest {
+    bulkDeleteRequest: BulkDeleteRequest;
+}
+
 export interface BulkRestoreDraftsOperationRequest {
     bulkRestoreDraftsRequest: BulkRestoreDraftsRequest;
 }
@@ -97,6 +107,10 @@ export interface CreateSessionOperationRequest {
 }
 
 export interface DeleteDraftSessionRequest {
+    id: string;
+}
+
+export interface DeleteSessionRequest {
     id: string;
 }
 
@@ -173,6 +187,22 @@ export interface SessionsApiInterface {
     bulkArchiveSessions(requestParameters: BulkArchiveSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BulkArchiveResponse>;
 
     /**
+     * Permanently delete multiple archived sessions in a single operation
+     * @summary Bulk delete sessions
+     * @param {BulkDeleteRequest} bulkDeleteRequest 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SessionsApiInterface
+     */
+    bulkDeleteSessionsRaw(requestParameters: BulkDeleteSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<BulkDeleteResponse>>;
+
+    /**
+     * Permanently delete multiple archived sessions in a single operation
+     * Bulk delete sessions
+     */
+    bulkDeleteSessions(requestParameters: BulkDeleteSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BulkDeleteResponse>;
+
+    /**
      * Restore multiple discarded draft sessions back to draft status
      * @summary Restore multiple discarded draft sessions
      * @param {BulkRestoreDraftsRequest} bulkRestoreDraftsRequest 
@@ -236,6 +266,22 @@ export interface SessionsApiInterface {
      * Delete a draft session
      */
     deleteDraftSession(requestParameters: DeleteDraftSessionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
+
+    /**
+     * Permanently delete an archived session from the database. Only archived sessions can be deleted. Active sessions must be archived first. 
+     * @summary Permanently delete a session
+     * @param {string} id Session ID
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SessionsApiInterface
+     */
+    deleteSessionRaw(requestParameters: DeleteSessionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>>;
+
+    /**
+     * Permanently delete an archived session from the database. Only archived sessions can be deleted. Active sessions must be archived first. 
+     * Permanently delete a session
+     */
+    deleteSession(requestParameters: DeleteSessionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void>;
 
     /**
      * Retrieve recently used working directories for quick access
@@ -467,6 +513,47 @@ export class SessionsApi extends runtime.BaseAPI implements SessionsApiInterface
     }
 
     /**
+     * Permanently delete multiple archived sessions in a single operation
+     * Bulk delete sessions
+     */
+    async bulkDeleteSessionsRaw(requestParameters: BulkDeleteSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<BulkDeleteResponse>> {
+        if (requestParameters['bulkDeleteRequest'] == null) {
+            throw new runtime.RequiredError(
+                'bulkDeleteRequest',
+                'Required parameter "bulkDeleteRequest" was null or undefined when calling bulkDeleteSessions().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+
+        let urlPath = `/sessions/delete`;
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: BulkDeleteRequestToJSON(requestParameters['bulkDeleteRequest']),
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => BulkDeleteResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Permanently delete multiple archived sessions in a single operation
+     * Bulk delete sessions
+     */
+    async bulkDeleteSessions(requestParameters: BulkDeleteSessionsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<BulkDeleteResponse> {
+        const response = await this.bulkDeleteSessionsRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Restore multiple discarded draft sessions back to draft status
      * Restore multiple discarded draft sessions
      */
@@ -633,6 +720,44 @@ export class SessionsApi extends runtime.BaseAPI implements SessionsApiInterface
      */
     async deleteDraftSession(requestParameters: DeleteDraftSessionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
         await this.deleteDraftSessionRaw(requestParameters, initOverrides);
+    }
+
+    /**
+     * Permanently delete an archived session from the database. Only archived sessions can be deleted. Active sessions must be archived first. 
+     * Permanently delete a session
+     */
+    async deleteSessionRaw(requestParameters: DeleteSessionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling deleteSession().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/sessions/{id}/delete`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'DELETE',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Permanently delete an archived session from the database. Only archived sessions can be deleted. Active sessions must be archived first. 
+     * Permanently delete a session
+     */
+    async deleteSession(requestParameters: DeleteSessionRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.deleteSessionRaw(requestParameters, initOverrides);
     }
 
     /**

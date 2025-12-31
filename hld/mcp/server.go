@@ -2,11 +2,14 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/humanlayer/humanlayer/hld/approval"
@@ -25,8 +28,15 @@ const (
 
 // ApprovalDecision represents the outcome of an approval request
 type ApprovalDecision struct {
-	Approved bool
-	Comment  string
+	Approved   bool
+	Comment    string
+	ImagePaths []string
+}
+
+// EncodedImage represents a base64-encoded image
+type EncodedImage struct {
+	MimeType string `json:"mime_type"`
+	Data     string `json:"data"`
 }
 
 // MCPServer wraps the mark3labs MCP server
@@ -181,6 +191,18 @@ func (s *MCPServer) handleRequestApproval(ctx context.Context, request mcp.CallT
 				"updatedInput": input,
 			}
 		}
+
+		// Include encoded images in the response if present
+		if len(decision.ImagePaths) > 0 {
+			images := encodeImages(decision.ImagePaths)
+			if len(images) > 0 {
+				responseData["images"] = images
+				slog.Info("Including images in MCP response",
+					"tool_use_id", toolUseID,
+					"image_count", len(images))
+			}
+		}
+
 		responseJSON, _ := json.Marshal(responseData)
 
 		return &mcp.CallToolResult{
@@ -239,6 +261,20 @@ func (s *MCPServer) listenForApprovalDecisions(ctx context.Context) {
 			approved, _ := event.Data["approved"].(bool)
 			comment, _ := event.Data["response_text"].(string)
 
+			// Extract image paths if present
+			var imagePaths []string
+			if rawPaths, ok := event.Data["image_paths"]; ok {
+				if paths, ok := rawPaths.([]string); ok {
+					imagePaths = paths
+				} else if ifacePaths, ok := rawPaths.([]interface{}); ok {
+					for _, p := range ifacePaths {
+						if s, ok := p.(string); ok {
+							imagePaths = append(imagePaths, s)
+						}
+					}
+				}
+			}
+
 			if toolUseID == "" {
 				continue
 			}
@@ -247,14 +283,57 @@ func (s *MCPServer) listenForApprovalDecisions(ctx context.Context) {
 			if ch, ok := s.pendingApprovals.Load(toolUseID); ok {
 				select {
 				case ch.(chan ApprovalDecision) <- ApprovalDecision{
-					Approved: approved,
-					Comment:  comment,
+					Approved:   approved,
+					Comment:    comment,
+					ImagePaths: imagePaths,
 				}:
-					slog.Info("Sent approval decision", "tool_use_id", toolUseID, "approved", approved)
+					slog.Info("Sent approval decision", "tool_use_id", toolUseID, "approved", approved, "image_count", len(imagePaths))
 				default:
 					slog.Warn("Channel full or closed", "tool_use_id", toolUseID)
 				}
 			}
 		}
+	}
+}
+
+// encodeImages reads and base64-encodes images from disk
+func encodeImages(imagePaths []string) []EncodedImage {
+	var encoded []EncodedImage
+	for _, path := range imagePaths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			slog.Warn("Failed to read image file", "path", path, "error", err)
+			continue
+		}
+
+		// Detect MIME type from extension
+		mimeType := detectMimeType(path)
+		if mimeType == "" {
+			slog.Warn("Unknown image type", "path", path)
+			continue
+		}
+
+		encoded = append(encoded, EncodedImage{
+			MimeType: mimeType,
+			Data:     base64.StdEncoding.EncodeToString(data),
+		})
+	}
+	return encoded
+}
+
+// detectMimeType returns the MIME type based on file extension
+func detectMimeType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	default:
+		return ""
 	}
 }

@@ -197,6 +197,11 @@ func (m *MockStore) UpdateUserSettings(ctx context.Context, settings store.UserS
 	return args.Error(0)
 }
 
+func (m *MockStore) StoreApprovalImages(ctx context.Context, approvalID string, imagePaths []string) error {
+	args := m.Called(ctx, approvalID, imagePaths)
+	return args.Error(0)
+}
+
 func (m *MockStore) Close() error {
 	args := m.Called()
 	return args.Error(0)

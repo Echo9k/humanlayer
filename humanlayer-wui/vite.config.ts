@@ -78,11 +78,26 @@ export default defineConfig(async () => ({
   // Generate source maps for production builds (required for Sentry)
   build: {
     sourcemap: process.env.NODE_ENV === 'production',
+    chunkSizeWarningLimit: 1300,
     // Additional build optimizations
     rollupOptions: {
       output: {
         // Don't include source code in source maps (security)
         sourcemapExcludeSources: true,
+        manualChunks(id) {
+          // Split vendor chunks for better caching
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'vendor-react'
+            }
+            if (id.includes('@radix-ui')) {
+              return 'vendor-ui'
+            }
+            if (id.includes('@tauri-apps')) {
+              return 'vendor-tauri'
+            }
+          }
+        },
       },
     },
   },

@@ -52,6 +52,8 @@ interface StoreState {
   bulkSetAutoAcceptEdits: (sessionIds: string[], autoAcceptEdits: boolean) => Promise<void>
   removeSession: (sessionId: string) => void
   bulkDiscardDrafts: (sessionIds: string[]) => Promise<void>
+  deleteSession: (sessionId: string) => Promise<void>
+  bulkDeleteSessions: (sessionIds: string[]) => Promise<void>
   bulkSetBypassPermissions: (
     sessionIds: string[],
     enabled: boolean,
@@ -561,6 +563,37 @@ export const useStore = create<StoreState>((set, get) => {
         await get().refreshSessions()
       } catch (error) {
         logger.error('Failed to bulk discard drafts:', error)
+        throw error
+      }
+    },
+    deleteSession: async (sessionId: string) => {
+      try {
+        await daemonClient.deleteSession(sessionId)
+        // Remove from local state
+        get().removeSession(sessionId)
+        // Refresh sessions to update the view
+        await get().refreshSessions()
+      } catch (error) {
+        logger.error('Failed to delete session:', error)
+        throw error
+      }
+    },
+    bulkDeleteSessions: async (sessionIds: string[]) => {
+      try {
+        const response = await daemonClient.bulkDeleteSessions(sessionIds)
+        if (!response.success) {
+          logger.error('Failed to delete some sessions:', response.failed_sessions)
+        }
+        // Remove deleted sessions from local state
+        response.deleted.forEach(sessionId => {
+          get().removeSession(sessionId)
+        })
+        // Clear selection after bulk operation
+        get().clearSelection()
+        // Refresh sessions to update the view
+        await get().refreshSessions()
+      } catch (error) {
+        logger.error('Failed to bulk delete sessions:', error)
         throw error
       }
     },

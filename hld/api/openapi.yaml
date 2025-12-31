@@ -379,6 +379,62 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /sessions/{id}/delete:
+    delete:
+      operationId: deleteSession
+      summary: Permanently delete a session
+      description: |
+        Permanently delete an archived session from the database.
+        Only archived sessions can be deleted. Active sessions must be archived first.
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/sessionId'
+      responses:
+        '204':
+          description: Session permanently deleted
+        '400':
+          description: Session is not archived (must be archived before deletion)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/delete:
+    post:
+      operationId: bulkDeleteSessions
+      summary: Bulk delete sessions
+      description: Permanently delete multiple archived sessions in a single operation
+      tags:
+        - Sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkDeleteRequest'
+      responses:
+        '200':
+          description: Bulk delete completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkDeleteResponse'
+        '207':
+          description: Partial success (some sessions could not be deleted)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkDeleteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /sessions/{id}/interrupt:
     post:
       operationId: interruptSession
@@ -1830,6 +1886,46 @@ components:
               items:
                 type: string
               description: Sessions that failed to update
+              example: ["sess_789"]
+
+    BulkDeleteRequest:
+      type: object
+      required:
+        - session_ids
+      properties:
+        session_ids:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          description: Sessions to permanently delete (must be archived)
+          example: ["sess_123", "sess_456"]
+
+    BulkDeleteResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          required:
+            - success
+            - deleted
+          properties:
+            success:
+              type: boolean
+              example: true
+            deleted:
+              type: array
+              items:
+                type: string
+              description: Sessions that were successfully deleted
+              example: ["sess_123", "sess_456"]
+            failed_sessions:
+              type: array
+              items:
+                type: string
+              description: Sessions that failed to delete (not archived or other error)
               example: ["sess_789"]
 
     BulkRestoreDraftsRequest:

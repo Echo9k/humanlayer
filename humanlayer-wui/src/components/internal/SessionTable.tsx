@@ -30,6 +30,7 @@ import { SessionsEmptyState } from './SessionsEmptyState'
 import { ArchivedSessionsEmptyState } from './ArchivedSessionsEmptyState'
 import { showUndoToast } from '@/utils/undoToast'
 import { TOAST_IDS } from '@/constants/toastIds'
+import { DeleteSessionDialog } from './SessionDetail/components/DeleteSessionDialog'
 
 interface SessionTableProps {
   sessions: Session[]
@@ -72,7 +73,13 @@ function SessionTableInner({
     bulkArchiveSessions,
     bulkSelect,
     bulkDiscardDrafts,
+    deleteSession,
+    bulkDeleteSessions,
   } = useStore()
+
+  // State for delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [sessionsToDelete, setSessionsToDelete] = useState<string[]>([])
 
   // Determine scope based on archived state
   const tableScope = isArchivedView ? HOTKEY_SCOPES.SESSIONS_ARCHIVED : HOTKEY_SCOPES.SESSIONS
@@ -654,6 +661,79 @@ function SessionTableInner({
     [focusedSession, selectedSessions, onBypassPermissions, isInlineRenameOpen],
   )
 
+  // Delete session hotkey (D,D - like vim's dd to delete a line)
+  useHotkeys(
+    'd>d',
+    async () => {
+      logger.log('[SessionTable] delete hotkey "d>d" fired')
+
+      // Get sessions to delete
+      let sessionIds: string[] = []
+
+      if (selectedSessions.size > 0) {
+        sessionIds = Array.from(selectedSessions)
+      } else if (focusedSession) {
+        sessionIds = [focusedSession.id]
+      }
+
+      if (sessionIds.length === 0) {
+        return
+      }
+
+      // Get session objects to check if they're archived
+      const sessionObjects = sessionIds
+        .map(id => sessions.find(s => s.id === id))
+        .filter(Boolean)
+
+      // Check if all sessions are archived
+      const allArchived = sessionObjects.every(s => s?.archived)
+
+      if (!allArchived) {
+        toast.warning('Can only delete archived sessions', {
+          description: 'Please archive the session(s) first before deleting.',
+        })
+        return
+      }
+
+      // Open confirmation dialog
+      setSessionsToDelete(sessionIds)
+      setDeleteDialogOpen(true)
+    },
+    {
+      scopes: [tableScope],
+      enabled: !isSessionLauncherOpen && !isInlineRenameOpen && (focusedSession !== null || selectedSessions.size > 0),
+      preventDefault: true,
+    },
+    [focusedSession, sessions, selectedSessions, isInlineRenameOpen],
+  )
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    try {
+      if (sessionsToDelete.length === 1) {
+        await deleteSession(sessionsToDelete[0])
+        toast.success('Session deleted permanently')
+        trackEvent(POSTHOG_EVENTS.SESSION_DELETED, { count: 1 })
+      } else {
+        await bulkDeleteSessions(sessionsToDelete)
+        toast.success(`${sessionsToDelete.length} sessions deleted permanently`)
+        trackEvent(POSTHOG_EVENTS.SESSION_DELETED, { count: sessionsToDelete.length })
+      }
+    } catch (error) {
+      toast.error('Failed to delete session(s)', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      })
+    } finally {
+      setDeleteDialogOpen(false)
+      setSessionsToDelete([])
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setSessionsToDelete([])
+  }
+
   return (
     <HotkeyScopeBoundary
       scope={tableScope}
@@ -859,6 +939,12 @@ function SessionTableInner({
       ) : (
         <SessionsEmptyState />
       )}
+      <DeleteSessionDialog
+        open={deleteDialogOpen}
+        sessionCount={sessionsToDelete.length}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
     </HotkeyScopeBoundary>
   )
 }
