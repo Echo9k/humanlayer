@@ -97,6 +97,8 @@ interface StoreState {
   /* UI State */
   isHotkeyPanelOpen: boolean
   setHotkeyPanelOpen: (open: boolean) => void
+  isCommandsHelperOpen: boolean
+  setCommandsHelperOpen: (open: boolean) => void
   isSettingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
   isEditingSessionTitle: boolean
@@ -1075,6 +1077,8 @@ export const useStore = create<StoreState>((set, get) => {
     // UI State
     isHotkeyPanelOpen: false,
     setHotkeyPanelOpen: (open: boolean) => set({ isHotkeyPanelOpen: open }),
+    isCommandsHelperOpen: false,
+    setCommandsHelperOpen: (open: boolean) => set({ isCommandsHelperOpen: open }),
     isSettingsDialogOpen: false,
     setSettingsDialogOpen: (open: boolean) => set({ isSettingsDialogOpen: open }),
     isEditingSessionTitle: false,

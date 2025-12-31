@@ -38,6 +38,8 @@ export const POSTHOG_EVENTS = {
   COMMAND_LAUNCHER_OPENED: 'command_launcher_opened',
   COMMAND_LAUNCHER_SELECTION: 'command_launcher_selection',
   HOTKEY_HELPER_VIEWED: 'hotkey_helper_viewed',
+  COMMANDS_HELPER_OPENED: 'commands_helper_opened',
+  COMMANDS_HELPER_USED: 'commands_helper_used',
 
   // Approval flow (optional - low priority)
   APPROVAL_RECEIVED: 'approval_received',

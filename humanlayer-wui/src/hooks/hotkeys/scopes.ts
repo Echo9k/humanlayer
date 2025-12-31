@@ -17,6 +17,7 @@ export const HOTKEY_SCOPES = {
   DELETE_CONFIRMATION_DIALOG: 'sessions.deleteConfirmationDialog',
   THEME_SELECTOR: 'themeSelector',
   KEYBOARD_HELPER: 'keyboardHelper',
+  COMMANDS_HELPER: 'commandsHelper',
   SETTINGS_MODAL: 'settingsModal',
   TITLE_EDITING: 'sessions.details.titleEditing',
   ADDITIONAL_DIRECTORIES: 'additionalDirectories',

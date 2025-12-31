@@ -145,12 +145,12 @@ export class HTTPDaemonClient implements IDaemonClient {
   async getSlashCommands(params: {
     workingDir: string
     query?: string
-  }): Promise<{ data: Array<{ name: string; source: 'local' | 'global' }> }> {
+  }): Promise<{ data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }> }> {
     await this.ensureConnected()
 
     const response = await this.client!.getSlashCommands(params)
 
-    return response as { data: Array<{ name: string; source: 'local' | 'global' }> }
+    return response as { data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }> }
   }
 
   async searchSessions(params: { query?: string; limit?: number } = {}): Promise<{ data: Session[] }> {
