@@ -9,6 +9,7 @@ import { HotkeyScope } from '@/hooks/hotkeys/scopes'
 import { logger } from '@/lib/logging'
 import { checkUnsupportedCommand } from '@/constants/unsupportedCommands'
 import { toast } from 'sonner'
+import { hasTextSelection } from '@/utils/selection'
 import { usePostHogTracking } from '@/hooks/usePostHogTracking'
 import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
 
@@ -230,10 +231,18 @@ export function useSessionActions({
   // Keyboard shortcuts
   // Note: Escape key is handled in SessionDetail to manage confirmingApprovalId state
 
-  // Ctrl+X to interrupt session
+  // Ctrl+X to interrupt session (but allow native cut when text is selected)
   useHotkeys(
     'ctrl+x',
-    () => {
+    e => {
+      // If text is selected, let the native cut behavior happen
+      if (hasTextSelection()) {
+        return
+      }
+
+      // Prevent default since we're handling this as interrupt
+      e.preventDefault()
+
       if (session.status === 'running' || session.status === 'starting') {
         if (!session.claudeSessionId) {
           toast.warning('Session cannot be interrupted yet', {
@@ -248,7 +257,6 @@ export function useSessionActions({
       scopes: [scope],
       enableOnFormTags: ['INPUT', 'TEXTAREA', 'SELECT'],
       enableOnContentEditable: true,
-      preventDefault: true,
     },
   )
 

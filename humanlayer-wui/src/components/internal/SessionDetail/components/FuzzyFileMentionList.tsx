@@ -298,7 +298,9 @@ export const FuzzyFileMentionList = forwardRef<FileMentionListRef, FileMentionLi
                     : ''
                 }`}
                 onMouseEnter={() => setSelectedIndex(index)}
-                onClick={() => {
+                onMouseDown={e => {
+                  // Prevent focus change which would close the popup before click completes
+                  e.preventDefault()
                   // Track subagent invoked event
                   trackEvent(POSTHOG_EVENTS.SUBAGENT_INVOKED, {
                     agent_name: agent.name,
@@ -366,7 +368,9 @@ export const FuzzyFileMentionList = forwardRef<FileMentionListRef, FileMentionLi
                     : ''
                 }`}
                 onMouseEnter={() => setSelectedIndex(index)}
-                onClick={() => {
+                onMouseDown={e => {
+                  // Prevent focus change which would close the popup before click completes
+                  e.preventDefault()
                   command({
                     id: '@' + file.path,
                     label: file.displayPath,

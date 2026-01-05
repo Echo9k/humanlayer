@@ -204,7 +204,9 @@ export const SlashCommandList = forwardRef<SlashCommandListRef, SlashCommandList
                 // Re-enable mouse control on mouse movement
                 mouseEnabledRef.current = true
               }}
-              onClick={() => {
+              onMouseDown={e => {
+                // Prevent focus change which would close the popup before click completes
+                e.preventDefault()
                 selectCommand(cmd)
               }}
             >
