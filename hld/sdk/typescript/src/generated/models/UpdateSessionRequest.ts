@@ -52,6 +52,12 @@ export interface UpdateSessionRequest {
      */
     archived?: boolean;
     /**
+     * Mark session as reviewed/checked off
+     * @type {boolean}
+     * @memberof UpdateSessionRequest
+     */
+    reviewed?: boolean;
+    /**
      * Update session title
      * @type {string}
      * @memberof UpdateSessionRequest
@@ -142,6 +148,7 @@ export function UpdateSessionRequestFromJSONTyped(json: any, ignoreDiscriminator
         'dangerouslySkipPermissions': json['dangerously_skip_permissions'] == null ? undefined : json['dangerously_skip_permissions'],
         'dangerouslySkipPermissionsTimeoutMs': json['dangerously_skip_permissions_timeout_ms'] == null ? undefined : json['dangerously_skip_permissions_timeout_ms'],
         'archived': json['archived'] == null ? undefined : json['archived'],
+        'reviewed': json['reviewed'] == null ? undefined : json['reviewed'],
         'title': json['title'] == null ? undefined : json['title'],
         'model': json['model'] == null ? undefined : json['model'],
         'modelId': json['model_id'] == null ? undefined : json['model_id'],
@@ -171,6 +178,7 @@ export function UpdateSessionRequestToJSONTyped(value?: UpdateSessionRequest | n
         'dangerously_skip_permissions': value['dangerouslySkipPermissions'],
         'dangerously_skip_permissions_timeout_ms': value['dangerouslySkipPermissionsTimeoutMs'],
         'archived': value['archived'],
+        'reviewed': value['reviewed'],
         'title': value['title'],
         'model': value['model'],
         'model_id': value['modelId'],

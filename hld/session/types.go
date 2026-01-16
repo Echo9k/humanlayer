@@ -62,6 +62,7 @@ type Info struct {
 	DangerouslySkipPermissions          bool               `json:"dangerously_skip_permissions"`
 	DangerouslySkipPermissionsExpiresAt *time.Time         `json:"dangerously_skip_permissions_expires_at,omitempty"`
 	Archived                            bool               `json:"archived"`
+	Reviewed                            bool               `json:"reviewed"`
 	EditorState                         *string            `json:"editor_state,omitempty"`
 	ProxyEnabled                        bool               `json:"proxy_enabled"`
 	ProxyBaseURL                        string             `json:"proxy_base_url,omitempty"`
@@ -191,6 +192,7 @@ func SessionToInfo(s store.Session) Info {
 		DangerouslySkipPermissions:          s.DangerouslySkipPermissions,
 		DangerouslySkipPermissionsExpiresAt: s.DangerouslySkipPermissionsExpiresAt,
 		Archived:                            s.Archived,
+		Reviewed:                            s.Reviewed,
 		EditorState:                         s.EditorState,
 		ProxyEnabled:                        s.ProxyEnabled,
 		ProxyBaseURL:                        s.ProxyBaseURL,

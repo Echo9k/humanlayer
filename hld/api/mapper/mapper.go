@@ -92,6 +92,7 @@ func (m *Mapper) SessionToAPI(s store.Session) api.Session {
 		session.DangerouslySkipPermissionsExpiresAt = s.DangerouslySkipPermissionsExpiresAt
 	}
 	session.Archived = &s.Archived
+	session.Reviewed = &s.Reviewed
 
 	// Proxy configuration fields
 	session.ProxyEnabled = &s.ProxyEnabled

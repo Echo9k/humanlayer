@@ -272,6 +272,9 @@ export const useStore = create<StoreState>((set, get) => {
             apiUpdates.dangerously_skip_permissions_timeout_ms = undefined
           }
         }
+        if (updates.reviewed !== undefined) {
+          apiUpdates.reviewed = updates.reviewed
+        }
 
         await daemonClient.updateSessionSettings(sessionId, apiUpdates)
 

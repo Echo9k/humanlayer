@@ -8,11 +8,16 @@ import {
   CircleOff,
   CheckSquare,
   Square,
+  CheckCircle2,
+  Circle,
   Pencil,
   ShieldOff,
   ChevronRight,
   ChevronDown,
   Folder,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react'
 import { SentryErrorBoundary } from '@/components/ErrorBoundary'
 import { getStatusTextClass } from '@/utils/component-utils'
@@ -42,6 +47,7 @@ import { showUndoToast } from '@/utils/undoToast'
 import { TOAST_IDS } from '@/constants/toastIds'
 import { DeleteSessionDialog } from './SessionDetail/components/DeleteSessionDialog'
 import { groupSessionsByFolder, getShortFolderName } from '@/utils/sessionGrouping'
+import { SessionSortColumn, SortDirection } from '@/lib/preferences'
 
 interface SessionTableProps {
   sessions: Session[]
@@ -58,6 +64,50 @@ interface SessionTableProps {
   onNavigateToSessions?: () => void // For archived view navigation
   onBypassPermissions?: (sessionIds: string[]) => void
   groupByFolder?: boolean // Group sessions by working directory
+  sortColumn?: SessionSortColumn // Current sort column
+  sortDirection?: SortDirection // Current sort direction
+  onSortChange?: (column: SessionSortColumn) => void // Handler for sort changes
+}
+
+// Sortable table header component
+interface SortableHeaderProps {
+  column: SessionSortColumn
+  label: string
+  currentColumn?: SessionSortColumn
+  currentDirection?: SortDirection
+  onSort?: (column: SessionSortColumn) => void
+  className?: string
+}
+
+function SortableHeader({
+  column,
+  label,
+  currentColumn,
+  currentDirection,
+  onSort,
+  className,
+}: SortableHeaderProps) {
+  const isActive = currentColumn === column
+
+  return (
+    <TableHead
+      className={cn('cursor-pointer select-none hover:bg-muted/50 transition-colors', className)}
+      onClick={() => onSort?.(column)}
+    >
+      <div className="flex items-center gap-1">
+        <span>{label}</span>
+        {isActive ? (
+          currentDirection === 'asc' ? (
+            <ArrowUp className="h-3.5 w-3.5 text-foreground" />
+          ) : (
+            <ArrowDown className="h-3.5 w-3.5 text-foreground" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+        )}
+      </div>
+    </TableHead>
+  )
 }
 
 function SessionTableInner({
@@ -75,6 +125,9 @@ function SessionTableInner({
   onNavigateToSessions,
   onBypassPermissions,
   groupByFolder = false,
+  sortColumn,
+  sortDirection,
+  onSortChange,
 }: SessionTableProps) {
   const isSessionLauncherOpen = useSessionLauncher(state => state.isOpen)
   const tableRef = useRef<HTMLTableElement>(null)
@@ -88,6 +141,7 @@ function SessionTableInner({
     bulkDiscardDrafts,
     deleteSession,
     bulkDeleteSessions,
+    updateSessionOptimistic,
   } = useStore()
 
   // State for delete confirmation dialog
@@ -810,6 +864,32 @@ function SessionTableInner({
           </div>
         </div>
       </TableCell>
+      {isArchivedView && (
+        <TableCell
+          className="w-[40px]"
+          onClick={e => {
+            e.stopPropagation()
+            updateSessionOptimistic(session.id, { reviewed: !session.reviewed })
+          }}
+        >
+          <div className="flex items-center justify-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-pointer">
+                  {session.reviewed ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Circle className="w-4 h-4 text-muted-foreground hover:text-green-500/50" />
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {session.reviewed ? 'Mark as not reviewed' : 'Mark as reviewed'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TableCell>
+      )}
       {!isDraftsView && (
         <TableCell className={getStatusTextClass(session.status)}>
           {session.status !== SessionStatus.Failed && (
@@ -959,12 +1039,62 @@ function SessionTableInner({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
-                {!isDraftsView && <TableHead>Status</TableHead>}
-                {!groupByFolder && <TableHead>Working Directory</TableHead>}
-                <TableHead>Title</TableHead>
-                <TableHead>Model</TableHead>
-                <TableHead>Started</TableHead>
-                <TableHead>Last Activity</TableHead>
+                {isArchivedView && (
+                  <TableHead className="w-[40px]">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-muted-foreground cursor-help">[x]</span>
+                      </TooltipTrigger>
+                      <TooltipContent>Mark as reviewed</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                )}
+                {!isDraftsView && (
+                  <SortableHeader
+                    column="status"
+                    label="Status"
+                    currentColumn={sortColumn}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                  />
+                )}
+                {!groupByFolder && (
+                  <SortableHeader
+                    column="workingDir"
+                    label="Working Directory"
+                    currentColumn={sortColumn}
+                    currentDirection={sortDirection}
+                    onSort={onSortChange}
+                  />
+                )}
+                <SortableHeader
+                  column="title"
+                  label="Title"
+                  currentColumn={sortColumn}
+                  currentDirection={sortDirection}
+                  onSort={onSortChange}
+                />
+                <SortableHeader
+                  column="model"
+                  label="Model"
+                  currentColumn={sortColumn}
+                  currentDirection={sortDirection}
+                  onSort={onSortChange}
+                />
+                <SortableHeader
+                  column="createdAt"
+                  label="Started"
+                  currentColumn={sortColumn}
+                  currentDirection={sortDirection}
+                  onSort={onSortChange}
+                />
+                <SortableHeader
+                  column="lastActivityAt"
+                  label="Last Activity"
+                  currentColumn={sortColumn}
+                  currentDirection={sortDirection}
+                  onSort={onSortChange}
+                />
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/AppStore'
-import { ViewMode } from '@/lib/daemon/types'
+import { Session, SessionStatus, ViewMode } from '@/lib/daemon/types'
 import SessionTable from '@/components/internal/SessionTable'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useKeyboardNavigationProtection } from '@/hooks'
@@ -12,8 +12,19 @@ import { HOTKEY_SCOPES } from '@/hooks/hotkeys/scopes'
 import { DangerouslySkipPermissionsDialog } from '@/components/internal/SessionDetail/DangerouslySkipPermissionsDialog'
 import { HotkeyScopeBoundary } from '@/components/HotkeyScopeBoundary'
 import { toast } from 'sonner'
-import { FolderTree, List } from 'lucide-react'
-import { getArchiveGroupByFolderPreference, setArchiveGroupByFolderPreference } from '@/lib/preferences'
+import { FolderTree, List, Eye, EyeOff } from 'lucide-react'
+import {
+  getArchiveGroupByFolderPreference,
+  setArchiveGroupByFolderPreference,
+  getArchiveHideReviewedPreference,
+  setArchiveHideReviewedPreference,
+  getSessionSortColumn,
+  setSessionSortColumn,
+  getSessionSortDirection,
+  setSessionSortDirection,
+  SessionSortColumn,
+  SortDirection,
+} from '@/lib/preferences'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function SessionTablePage() {
@@ -35,10 +46,123 @@ export function SessionTablePage() {
     })
   }, [])
 
+  // Hide reviewed preference for archived view
+  const [hideReviewed, setHideReviewed] = useState(() => getArchiveHideReviewedPreference())
+
+  const toggleHideReviewed = useCallback(() => {
+    setHideReviewed(prev => {
+      const newValue = !prev
+      setArchiveHideReviewedPreference(newValue)
+      return newValue
+    })
+  }, [])
+
+  // Sort preferences
+  const [sortColumn, setSortColumnState] = useState<SessionSortColumn>(() => getSessionSortColumn())
+  const [sortDirection, setSortDirectionState] = useState<SortDirection>(() =>
+    getSessionSortDirection(),
+  )
+
+  const handleSortChange = useCallback((column: SessionSortColumn) => {
+    setSortColumnState(prevColumn => {
+      if (prevColumn === column) {
+        // Toggle direction if same column
+        setSortDirectionState(prevDirection => {
+          const newDirection = prevDirection === 'asc' ? 'desc' : 'asc'
+          setSessionSortDirection(newDirection)
+          return newDirection
+        })
+        return column
+      } else {
+        // New column, default to descending for dates, ascending for text
+        const defaultDirection =
+          column === 'createdAt' || column === 'lastActivityAt' ? 'desc' : 'asc'
+        setSortDirectionState(defaultDirection)
+        setSessionSortDirection(defaultDirection)
+        setSessionSortColumn(column)
+        return column
+      }
+    })
+  }, [])
+
+  // Sort sessions based on current sort column and direction
+  const sortSessions = useCallback(
+    (sessionsToSort: Session[]): Session[] => {
+      if (!sortColumn) return sessionsToSort
+
+      return [...sessionsToSort].sort((a, b) => {
+        let comparison = 0
+
+        switch (sortColumn) {
+          case 'status': {
+            // Define status order for sorting (active states first)
+            const statusOrder: Record<string, number> = {
+              [SessionStatus.Running]: 0,
+              [SessionStatus.WaitingInput]: 1,
+              [SessionStatus.Starting]: 2,
+              [SessionStatus.Interrupting]: 3,
+              [SessionStatus.Interrupted]: 4,
+              [SessionStatus.Completed]: 5,
+              [SessionStatus.Failed]: 6,
+              [SessionStatus.Draft]: 7,
+              [SessionStatus.Discarded]: 8,
+            }
+            const aOrder = statusOrder[a.status] ?? 99
+            const bOrder = statusOrder[b.status] ?? 99
+            comparison = aOrder - bOrder
+            break
+          }
+          case 'workingDir': {
+            const aDir = a.workingDir || ''
+            const bDir = b.workingDir || ''
+            comparison = aDir.localeCompare(bDir)
+            break
+          }
+          case 'title': {
+            const aTitle = a.title || a.summary || a.query || ''
+            const bTitle = b.title || b.summary || b.query || ''
+            comparison = aTitle.localeCompare(bTitle)
+            break
+          }
+          case 'model': {
+            const aModel = a.model || ''
+            const bModel = b.model || ''
+            comparison = aModel.localeCompare(bModel)
+            break
+          }
+          case 'createdAt': {
+            const aTime = new Date(a.createdAt).getTime()
+            const bTime = new Date(b.createdAt).getTime()
+            comparison = aTime - bTime
+            break
+          }
+          case 'lastActivityAt': {
+            const aTime = new Date(a.lastActivityAt).getTime()
+            const bTime = new Date(b.lastActivityAt).getTime()
+            comparison = aTime - bTime
+            break
+          }
+        }
+
+        return sortDirection === 'asc' ? comparison : -comparison
+      })
+    },
+    [sortColumn, sortDirection],
+  )
+
   // Keyboard navigation protection
   const { shouldIgnoreMouseEvent, startKeyboardNavigation } = useKeyboardNavigationProtection()
 
   const sessions = useStore(state => state.sessions)
+  const viewModeState = useStore(state => state.getViewMode)
+  const sortedSessions = useMemo(() => {
+    // Filter out reviewed sessions in Archive view when hideReviewed is true
+    const filteredSessions =
+      viewModeState() === ViewMode.Archived && hideReviewed
+        ? sessions.filter(s => !s.reviewed)
+        : sessions
+    return sortSessions(filteredSessions)
+  }, [sessions, sortSessions, viewModeState, hideReviewed])
   const sessionCounts = useStore(state => state.sessionCounts)
   const selectedSessions = useStore(state => state.selectedSessions)
   const clearSelection = useStore(state => state.clearSelection)
@@ -142,37 +266,41 @@ export function SessionTablePage() {
     }
   }
 
-  // Custom navigation functions that work with sessions
+  // Custom navigation functions that work with sorted sessions
   const focusNextSession = () => {
-    if (sessions.length === 0) return
+    if (sortedSessions.length === 0) return
 
     startKeyboardNavigation()
 
-    const currentIndex = focusedSession ? sessions.findIndex(s => s.id === focusedSession.id) : -1
+    const currentIndex = focusedSession
+      ? sortedSessions.findIndex(s => s.id === focusedSession.id)
+      : -1
 
     // If no session is focused or we're at the last session, focus the first session
-    if (currentIndex === -1 || currentIndex === sessions.length - 1) {
-      setFocusedSession(sessions[0])
+    if (currentIndex === -1 || currentIndex === sortedSessions.length - 1) {
+      setFocusedSession(sortedSessions[0])
     } else {
       // Focus the next session
-      setFocusedSession(sessions[currentIndex + 1])
+      setFocusedSession(sortedSessions[currentIndex + 1])
     }
     setFocusSource('keyboard')
   }
 
   const focusPreviousSession = () => {
-    if (sessions.length === 0) return
+    if (sortedSessions.length === 0) return
 
     startKeyboardNavigation()
 
-    const currentIndex = focusedSession ? sessions.findIndex(s => s.id === focusedSession.id) : -1
+    const currentIndex = focusedSession
+      ? sortedSessions.findIndex(s => s.id === focusedSession.id)
+      : -1
 
     // If no session is focused or we're at the first session, focus the last session
     if (currentIndex === -1 || currentIndex === 0) {
-      setFocusedSession(sessions[sessions.length - 1])
+      setFocusedSession(sortedSessions[sortedSessions.length - 1])
     } else {
       // Focus the previous session
-      setFocusedSession(sessions[currentIndex - 1])
+      setFocusedSession(sortedSessions[currentIndex - 1])
     }
     setFocusSource('keyboard')
   }
@@ -266,8 +394,8 @@ export function SessionTablePage() {
         container.scrollTop = 0
       }
       // Also focus the first session
-      if (sessions.length > 0) {
-        setFocusedSession(sessions[0])
+      if (sortedSessions.length > 0) {
+        setFocusedSession(sortedSessions[0])
       }
     },
     {
@@ -291,8 +419,8 @@ export function SessionTablePage() {
         container.scrollTop = container.scrollHeight
       }
       // Also focus the last session
-      if (sessions.length > 0) {
-        setFocusedSession(sessions[sessions.length - 1])
+      if (sortedSessions.length > 0) {
+        setFocusedSession(sortedSessions[sortedSessions.length - 1])
       }
     },
     {
@@ -368,24 +496,42 @@ export function SessionTablePage() {
         </Tabs>
 
         <div className="flex items-center gap-2">
-          {/* Group by folder toggle - only shown in archived view */}
+          {/* Archive view toggles - only shown in archived view */}
           {viewMode === ViewMode.Archived && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={toggleGroupByFolder}
-                  size="sm"
-                  variant={groupByFolder ? 'default' : 'outline'}
-                  className="gap-1.5"
-                >
-                  {groupByFolder ? <FolderTree className="h-4 w-4" /> : <List className="h-4 w-4" />}
-                  {groupByFolder ? 'Grouped' : 'Flat'}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {groupByFolder ? 'Switch to flat list view' : 'Group archived sessions by folder'}
-              </TooltipContent>
-            </Tooltip>
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={toggleHideReviewed}
+                    size="sm"
+                    variant={hideReviewed ? 'default' : 'outline'}
+                    className="gap-1.5"
+                  >
+                    {hideReviewed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {hideReviewed ? 'Hiding reviewed' : 'Showing all'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {hideReviewed ? 'Show reviewed sessions' : 'Hide reviewed sessions'}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={toggleGroupByFolder}
+                    size="sm"
+                    variant={groupByFolder ? 'default' : 'outline'}
+                    className="gap-1.5"
+                  >
+                    {groupByFolder ? <FolderTree className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                    {groupByFolder ? 'Grouped' : 'Flat'}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {groupByFolder ? 'Switch to flat list view' : 'Group archived sessions by folder'}
+                </TooltipContent>
+              </Tooltip>
+            </>
           )}
 
           {/* Only show Create button when not in empty state for normal/drafts view */}
@@ -404,7 +550,7 @@ export function SessionTablePage() {
       </nav>
       <div ref={tableRef} tabIndex={-1} className="focus:outline-none">
         <SessionTable
-          sessions={sessions}
+          sessions={sortedSessions}
           handleFocusSession={session => {
             if (!shouldIgnoreMouseEvent()) {
               setFocusedSession(session)
@@ -428,6 +574,9 @@ export function SessionTablePage() {
           onNavigateToSessions={() => setViewMode(ViewMode.Normal)}
           onBypassPermissions={handleBypassPermissions}
           groupByFolder={viewMode === ViewMode.Archived && groupByFolder}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSortChange={handleSortChange}
         />
       </div>
       <HotkeyScopeBoundary

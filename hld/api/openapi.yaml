@@ -1332,6 +1332,10 @@ components:
           type: boolean
           description: Whether session is archived
           default: false
+        reviewed:
+          type: boolean
+          description: Whether session has been reviewed/checked off
+          default: false
         proxy_enabled:
           type: boolean
           description: Whether proxy is enabled for this session
@@ -1601,6 +1605,9 @@ components:
         archived:
           type: boolean
           description: Archive/unarchive the session
+        reviewed:
+          type: boolean
+          description: Mark session as reviewed/checked off
         title:
           type: string
           description: Update session title

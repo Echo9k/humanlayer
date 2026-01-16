@@ -370,6 +370,7 @@ export class HTTPDaemonClient implements IDaemonClient {
       auto_accept_edits?: boolean
       dangerously_skip_permissions?: boolean
       dangerously_skip_permissions_timeout_ms?: number
+      reviewed?: boolean
     },
   ): Promise<{ success: boolean }> {
     await this.ensureConnected()
@@ -384,6 +385,9 @@ export class HTTPDaemonClient implements IDaemonClient {
     }
     if (settings.dangerously_skip_permissions_timeout_ms !== undefined) {
       payload.dangerouslySkipPermissionsTimeoutMs = settings.dangerously_skip_permissions_timeout_ms
+    }
+    if (settings.reviewed !== undefined) {
+      payload.reviewed = settings.reviewed
     }
 
     logger.log('Sending updateSession request', { sessionId, payload })

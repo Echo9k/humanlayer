@@ -387,6 +387,7 @@ func (h *SessionHandlers) ListSessions(ctx context.Context, req api.ListSessions
 			DangerouslySkipPermissions:          info.DangerouslySkipPermissions,
 			DangerouslySkipPermissionsExpiresAt: info.DangerouslySkipPermissionsExpiresAt,
 			Archived:                            info.Archived,
+			Reviewed:                            info.Reviewed,
 			EditorState:                         info.EditorState,
 			ProxyEnabled:                        info.ProxyEnabled,
 			ProxyBaseURL:                        info.ProxyBaseURL,
@@ -486,6 +487,11 @@ func (h *SessionHandlers) UpdateSession(ctx context.Context, req api.UpdateSessi
 	// Update archived status if specified
 	if req.Body.Archived != nil {
 		update.Archived = req.Body.Archived
+	}
+
+	// Update reviewed status if specified
+	if req.Body.Reviewed != nil {
+		update.Reviewed = req.Body.Reviewed
 	}
 
 	// Update title if specified
