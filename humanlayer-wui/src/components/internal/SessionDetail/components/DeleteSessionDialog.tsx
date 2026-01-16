@@ -47,8 +47,7 @@ export const DeleteSessionDialog: React.FC<DeleteSessionDialogProps> = ({
     { enabled: open, enableOnFormTags: true, preventDefault: true },
   )
 
-  const headerText =
-    sessionCount > 1 ? `Delete ${sessionCount} Sessions?` : 'Delete Session?'
+  const headerText = sessionCount > 1 ? `Delete ${sessionCount} Sessions?` : 'Delete Session?'
 
   const descriptionText =
     sessionCount > 1

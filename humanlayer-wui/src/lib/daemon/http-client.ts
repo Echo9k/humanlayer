@@ -145,12 +145,16 @@ export class HTTPDaemonClient implements IDaemonClient {
   async getSlashCommands(params: {
     workingDir: string
     query?: string
-  }): Promise<{ data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }> }> {
+  }): Promise<{
+    data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }>
+  }> {
     await this.ensureConnected()
 
     const response = await this.client!.getSlashCommands(params)
 
-    return response as { data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }> }
+    return response as {
+      data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }>
+    }
   }
 
   async searchSessions(params: { query?: string; limit?: number } = {}): Promise<{ data: Session[] }> {
@@ -780,6 +784,100 @@ export class HTTPDaemonClient implements IDaemonClient {
 
     const response = await this.client.updateConfig(settings)
     return response
+  }
+
+  // ==========================================================================
+  // Git Operations
+  // ==========================================================================
+
+  async getGitStatus(sessionId: string): Promise<import('./types').GitStatusResponse> {
+    await this.ensureConnected()
+    const baseUrl = await getDaemonUrl()
+    const response = await fetch(`${baseUrl}/api/v1/sessions/${sessionId}/git/status`, {
+      method: 'GET',
+      headers: getDefaultHeaders(),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(error.message || `Failed to get git status: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  async generateCommitMessage(
+    sessionId: string,
+    request: import('./types').GenerateCommitMessageRequest,
+  ): Promise<import('./types').GenerateCommitMessageResponse> {
+    await this.ensureConnected()
+    const baseUrl = await getDaemonUrl()
+    const response = await fetch(
+      `${baseUrl}/api/v1/sessions/${sessionId}/git/generate-commit-message`,
+      {
+        method: 'POST',
+        headers: {
+          ...getDefaultHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      },
+    )
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(error.message || `Failed to generate commit message: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  async commitChanges(
+    sessionId: string,
+    request: import('./types').CommitRequest,
+  ): Promise<import('./types').CommitResponse> {
+    await this.ensureConnected()
+    const baseUrl = await getDaemonUrl()
+    const response = await fetch(`${baseUrl}/api/v1/sessions/${sessionId}/git/commit`, {
+      method: 'POST',
+      headers: {
+        ...getDefaultHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(error.message || `Failed to commit changes: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
+
+  async sendEphemeralChat(
+    sessionId: string,
+    request: import('./types').EphemeralChatRequest,
+  ): Promise<import('./types').EphemeralChatResponse> {
+    await this.ensureConnected()
+    const baseUrl = await getDaemonUrl()
+    const response = await fetch(`${baseUrl}/api/v1/ephemeral-chat/${sessionId}`, {
+      method: 'POST',
+      headers: {
+        ...getDefaultHeaders(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }))
+      throw new Error(
+        error.message || error.error || `Failed to send ephemeral chat: ${response.statusText}`,
+      )
+    }
+
+    return response.json()
   }
 
   private async ensureConnected(): Promise<void> {

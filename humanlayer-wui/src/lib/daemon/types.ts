@@ -17,6 +17,27 @@ export { SessionStatus, ApprovalStatus }
 export type { Event, EventType }
 export type RecentPath = SDKRecentPath
 
+// MCP Configuration Types
+export interface MCPServer {
+  /** Server type - "http" for HTTP servers, omit for stdio */
+  type?: string
+  /** Command to execute (stdio servers) */
+  command?: string
+  /** Command arguments (stdio servers) */
+  args?: string[]
+  /** Environment variables (stdio servers) */
+  env?: Record<string, string>
+  /** HTTP endpoint URL (HTTP servers) */
+  url?: string
+  /** HTTP headers (HTTP servers) */
+  headers?: Record<string, string>
+}
+
+export interface MCPConfig {
+  /** Map of server name to configuration */
+  mcpServers?: Record<string, MCPServer>
+}
+
 // Export SDK types directly
 export type { Approval, Agent } from '@humanlayer/hld-sdk'
 
@@ -37,7 +58,7 @@ export interface LaunchSessionParams {
   provider?: 'anthropic' | 'openrouter' | 'baseten'
   model?: string
   workingDir?: string
-  mcpConfig?: any
+  mcpConfig?: MCPConfig
   permissionPromptTool?: string
   maxTurns?: number
   autoAcceptEdits?: boolean
@@ -85,7 +106,9 @@ export interface DaemonClient {
   getSlashCommands(params: {
     workingDir: string
     query?: string
-  }): Promise<{ data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }> }>
+  }): Promise<{
+    data: Array<{ name: string; source: 'local' | 'global'; description?: string; model?: string }>
+  }>
   searchSessions(params: { query?: string; limit?: number }): Promise<{ data: Session[] }>
   listSessions(): Promise<Session[]>
   getSessionLeaves(request?: { filter?: 'normal' | 'archived' | 'draft' }): Promise<{
@@ -172,6 +195,30 @@ export interface DaemonClient {
     respectGitignore?: boolean
   }): Promise<FuzzySearchFilesResponse>
   discoverAgents(workingDir: string): Promise<Agent[]>
+
+  // Git operations
+  getGitStatus(sessionId: string): Promise<GitStatusResponse>
+  generateCommitMessage(
+    sessionId: string,
+    request: GenerateCommitMessageRequest,
+  ): Promise<GenerateCommitMessageResponse>
+  commitChanges(sessionId: string, request: CommitRequest): Promise<CommitResponse>
+
+  // Ephemeral chat (non-persistent AI queries)
+  sendEphemeralChat(sessionId: string, request: EphemeralChatRequest): Promise<EphemeralChatResponse>
+}
+
+// Ephemeral Chat types
+export interface EphemeralChatRequest {
+  message: string
+  context?: {
+    includeRecentEvents?: boolean
+    maxEvents?: number
+  }
+}
+
+export interface EphemeralChatResponse {
+  content: string
 }
 
 // Legacy enums and types for backward compatibility (to be gradually removed)
@@ -206,7 +253,7 @@ export interface LaunchSessionRequest {
   title?: string
   provider?: 'anthropic' | 'openrouter' | 'baseten'
   model?: string
-  mcp_config?: any
+  mcp_config?: MCPConfig
   permission_prompt_tool?: string
   working_dir?: string
   additional_directories?: string[]
@@ -467,4 +514,96 @@ export function transformSDKSession(sdkSession: SDKSession): Session {
     ...sdkSession,
     dangerouslySkipPermissions: sdkSession.dangerouslySkipPermissions ?? false,
   }
+}
+
+// =============================================================================
+// Git & Commit Types
+// =============================================================================
+
+export type GitFileStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'untracked'
+
+export interface GitFile {
+  path: string
+  status: GitFileStatus
+  oldPath?: string // For renamed files
+  diff?: string // Truncated diff preview
+}
+
+export interface GitStatusResponse {
+  staged: GitFile[]
+  unstaged: GitFile[]
+  untracked: GitFile[]
+  branch: string
+  hasChanges: boolean
+  ahead?: number // Commits ahead of remote
+  behind?: number // Commits behind remote
+}
+
+export interface CommitMessage {
+  subject: string // ~50 chars, imperative mood, capitalized, no period
+  body?: string // Wrapped at 72 chars, explains what & why
+  footer?: string // Issue refs, breaking changes
+  files: string[] // Files included in this commit
+}
+
+export type CommitSuggestionType = 'single' | 'multiple' | 'branch'
+
+export interface CommitSuggestion {
+  type: CommitSuggestionType
+  branchName?: string
+  commits: CommitMessage[]
+  reasoning: string
+}
+
+export interface FileAction {
+  path: string
+  action: 'created' | 'modified' | 'deleted'
+  purpose?: string // From assistant explanation near the tool call
+}
+
+export type CommitChangeType = 'feature' | 'fix' | 'refactor' | 'docs' | 'chore' | 'test' | 'style'
+
+export interface ConversationContext {
+  // Primary intent from session
+  originalQuery: string
+  sessionSummary?: string
+
+  // Extracted from conversation events
+  userIntents: string[]
+  keyDecisions: string[]
+  filesModified: FileAction[]
+  issueReferences: string[]
+
+  // Inferred metadata
+  changeType: CommitChangeType
+  scope?: string
+}
+
+export interface GenerateCommitMessageRequest {
+  conversationContext?: ConversationContext
+  includeUntracked?: boolean
+}
+
+export interface GenerateCommitMessageResponse {
+  suggestion: CommitSuggestion
+  gitContext: {
+    recentCommits: string[] // Last 5 commit subjects for style matching
+    changedFileCount: number
+    additionsCount: number
+    deletionsCount: number
+  }
+}
+
+export interface CommitRequest {
+  commits: CommitMessage[]
+  createBranch?: string
+  stageUntracked?: boolean
+  stageFiles?: string[] // Specific files to stage (if not all)
+}
+
+export interface CommitResponse {
+  success: boolean
+  commitHashes: string[]
+  branchCreated?: string
+  error?: string
 }

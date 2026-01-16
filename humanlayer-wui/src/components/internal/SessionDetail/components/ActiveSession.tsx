@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router'
 
 import { ConversationEvent, Session, ApprovalStatus, SessionStatus } from '@/lib/daemon/types'
 import { Card, CardContent } from '@/components/ui/card'
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { useConversation, useKeyboardNavigationProtection } from '@/hooks'
 import { ChevronDown } from 'lucide-react'
 import { daemonClient } from '@/lib/daemon/client'
@@ -25,6 +26,9 @@ import { DangerouslySkipPermissionsDialog } from '../DangerouslySkipPermissionsD
 import { AdditionalDirectoriesDropdown } from './AdditionalDirectoriesDropdown'
 import { OmniSpinner } from './OmniSpinner'
 import { DeleteSessionDialog } from './DeleteSessionDialog'
+import { CommitDialog } from '../../CommitDialog'
+import { EphemeralChatPanel } from './EphemeralChatPanel'
+import { SessionStrip } from './SessionStrip'
 import { usePostHogTracking } from '@/hooks/usePostHogTracking'
 import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
 
@@ -65,11 +69,18 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
   const [dangerousSkipPermissionsDialogOpen, setDangerousSkipPermissionsDialogOpen] = useState(false)
   const [directoriesDropdownOpen, setDirectoriesDropdownOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [commitDialogOpen, setCommitDialogOpen] = useState(false)
 
   const { trackEvent } = usePostHogTracking()
   const responseEditor = useStore(state => state.responseEditor)
   const isEditingSessionTitle = useStore(state => state.isEditingSessionTitle)
   const setIsEditingSessionTitle = useStore(state => state.setIsEditingSessionTitle)
+
+  // Ephemeral chat state
+  const isEphemeralChatOpen = useStore(state => state.isEphemeralChatOpen)
+  const setEphemeralChatOpen = useStore(state => state.setEphemeralChatOpen)
+  const ephemeralChatFullTakeover = useStore(state => state.ephemeralChatFullTakeover)
+  const setEphemeralChatFullTakeover = useStore(state => state.setEphemeralChatFullTakeover)
 
   // Keyboard navigation protection
   const { shouldIgnoreMouseEvent, startKeyboardNavigation } = useKeyboardNavigationProtection()
@@ -308,6 +319,18 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
   const handleUpdateAdditionalDirectories = async (directories: string[]) => {
     await daemonClient.updateSession(session.id, { additionalDirectories: directories })
     useStore.getState().updateSession(session.id, { additionalDirectories: directories })
+  }
+
+  // Handle updating working directory and additional directories (swap functionality)
+  const handleUpdateWorkingDir = async (newWorkingDir: string, newAdditionalDirectories: string[]) => {
+    await daemonClient.updateSession(session.id, {
+      workingDir: newWorkingDir,
+      additionalDirectories: newAdditionalDirectories,
+    })
+    useStore.getState().updateSession(session.id, {
+      workingDir: newWorkingDir,
+      additionalDirectories: newAdditionalDirectories,
+    })
   }
 
   // Check if there are pending approvals out of view
@@ -786,6 +809,20 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
     },
   )
 
+  // Open commit dialog (Ctrl+K)
+  useHotkeys(
+    'meta+k, ctrl+k',
+    e => {
+      e.preventDefault()
+      if (session.workingDir) {
+        setCommitDialogOpen(true)
+      }
+    },
+    {
+      scopes: [detailScope],
+    },
+  )
+
   // Toggle directories dropdown
   useHotkeys(
     'shift+d',
@@ -815,6 +852,20 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
       enableOnFormTags: false,
     },
     [setIsEditingSessionTitle, approvals.confirmingApprovalId, expandedToolResult],
+  )
+
+  // Toggle ephemeral chat panel
+  useHotkeys(
+    'mod+shift+e, ctrl+shift+e',
+    e => {
+      e.preventDefault()
+      setEphemeralChatOpen(!isEphemeralChatOpen)
+    },
+    {
+      scopes: [detailScope],
+      preventDefault: true,
+    },
+    [isEphemeralChatOpen, setEphemeralChatOpen],
   )
 
   // Check if there are pending approvals out of view
@@ -887,6 +938,7 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
               directories={session.additionalDirectories || []}
               sessionStatus={session.status}
               onDirectoriesChange={handleUpdateAdditionalDirectories}
+              onWorkingDirChange={handleUpdateWorkingDir}
               open={directoriesDropdownOpen}
               onOpenChange={setDirectoriesDropdownOpen}
             />
@@ -910,88 +962,140 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
           />
         </div>
 
-        <div className="flex flex-1 gap-4 flex-col lg:flex-row min-h-0">
-          {/* Conversation content */}
-          <Card
-            className={`Conversation-Card w-full relative ${cardVerticalPadding} flex flex-col min-h-0`}
+        <ResizablePanelGroup
+          key={`resizable-${isEphemeralChatOpen}-${ephemeralChatFullTakeover}`}
+          orientation="horizontal"
+          className="flex-1 min-h-0"
+        >
+          {/* Session Panel */}
+          <ResizablePanel
+            id="session-panel"
+            defaultSize={isEphemeralChatOpen ? (ephemeralChatFullTakeover ? 5 : 70) : 100}
+            minSize={ephemeralChatFullTakeover ? 5 : 30}
+            className="overflow-hidden"
           >
-            <CardContent className="px-3 flex flex-col flex-1 min-h-0">
-              <ConversationStream
-                session={session}
-                focusedEventId={navigation.focusedEventId}
-                setFocusedEventId={navigation.setFocusedEventId}
-                onApprove={approvals.handleApprove}
-                onDeny={(approvalId: string, reason: string) =>
-                  approvals.handleDeny(approvalId, reason, session.id)
-                }
-                approvingApprovalId={approvals.approvingApprovalId}
-                denyingApprovalId={approvals.denyingApprovalId ?? undefined}
-                setDenyingApprovalId={id => {
-                  if (id === null) {
-                    approvals.handleCancelDeny()
-                  } else {
-                    // Clear fork state when entering denial mode
-                    if (forkPreviewData) {
-                      setForkPreviewData(null)
-                      responseEditor?.commands.setContent('')
-                    }
-                    approvals.handleStartDeny(id)
-                  }
-                }}
-                onCancelDeny={approvals.handleCancelDeny}
-                focusSource={navigation.focusSource}
-                setFocusSource={navigation.setFocusSource}
-                expandedToolResult={expandedToolResult}
-                setExpandedToolResult={setExpandedToolResult}
-                setExpandedToolCall={setExpandedToolCall}
-                maxEventIndex={forkPreviewData?.eventIndex ?? undefined}
-                shouldIgnoreMouseEvent={shouldIgnoreMouseEvent}
-                expandedTasks={expandedTasks}
-                toggleTaskGroup={toggleTaskGroup}
-              />
-            </CardContent>
-            {isActivelyProcessing && (
-              <div
-                className={`absolute bottom-0 left-0 px-3 py-1.5 border-t border-border bg-secondary/30 w-full font-mono text-xs uppercase tracking-wider text-muted-foreground transition-all duration-300 ease-out ${
-                  isActivelyProcessing ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
-                }`}
-              >
-                <OmniSpinner />
-              </div>
-            )}
-            {/* Status bar for pending approvals */}
-            <div
-              className={`absolute bottom-0 left-0 right-0 p-2 cursor-pointer transition-all duration-300 ease-in-out ${
-                hasPendingApprovalsOutOfView
-                  ? 'opacity-100 translate-y-0'
-                  : 'opacity-0 translate-y-full pointer-events-none'
-              }`}
-              onClick={() => {
-                const container = document.querySelector('[data-conversation-container]')
-                if (container) {
-                  container.scrollTop = container.scrollHeight
-                }
-              }}
-            >
-              <div className="flex items-center justify-center gap-1 font-mono text-xs uppercase tracking-wider text-muted-foreground bg-background/60 backdrop-blur-sm border-t border-border/50 py-1 shadow-sm hover:bg-background/80 transition-colors">
-                <span>
-                  {pendingApprovalsCount === 1
-                    ? 'Pending Approval'
-                    : `${pendingApprovalsCount} Pending Approvals`}
-                </span>
-                <ChevronDown className="w-3 h-3 animate-bounce" />
-              </div>
-            </div>
-          </Card>
+            <div className="h-full w-full flex flex-col lg:flex-row gap-4 overflow-hidden">
+              {ephemeralChatFullTakeover && isEphemeralChatOpen ? (
+                <SessionStrip session={session} onRestore={() => setEphemeralChatFullTakeover(false)} />
+              ) : (
+                <>
+                  {/* Conversation content */}
+                  <Card
+                    className={`Conversation-Card w-full relative ${cardVerticalPadding} flex flex-col min-h-0`}
+                  >
+                    <CardContent className="px-3 flex flex-col flex-1 min-h-0">
+                      <ConversationStream
+                        session={session}
+                        focusedEventId={navigation.focusedEventId}
+                        setFocusedEventId={navigation.setFocusedEventId}
+                        onApprove={approvals.handleApprove}
+                        onDeny={(approvalId: string, reason: string) =>
+                          approvals.handleDeny(approvalId, reason, session.id)
+                        }
+                        approvingApprovalId={approvals.approvingApprovalId}
+                        denyingApprovalId={approvals.denyingApprovalId ?? undefined}
+                        setDenyingApprovalId={id => {
+                          if (id === null) {
+                            approvals.handleCancelDeny()
+                          } else {
+                            // Clear fork state when entering denial mode
+                            if (forkPreviewData) {
+                              setForkPreviewData(null)
+                              responseEditor?.commands.setContent('')
+                            }
+                            approvals.handleStartDeny(id)
+                          }
+                        }}
+                        onCancelDeny={approvals.handleCancelDeny}
+                        focusSource={navigation.focusSource}
+                        setFocusSource={navigation.setFocusSource}
+                        expandedToolResult={expandedToolResult}
+                        setExpandedToolResult={setExpandedToolResult}
+                        setExpandedToolCall={setExpandedToolCall}
+                        maxEventIndex={forkPreviewData?.eventIndex ?? undefined}
+                        shouldIgnoreMouseEvent={shouldIgnoreMouseEvent}
+                        expandedTasks={expandedTasks}
+                        toggleTaskGroup={toggleTaskGroup}
+                      />
+                    </CardContent>
+                    {isActivelyProcessing && (
+                      <div
+                        className={`absolute bottom-0 left-0 px-3 py-1.5 border-t border-border bg-secondary/30 w-full font-mono text-xs uppercase tracking-wider text-muted-foreground transition-all duration-300 ease-out ${
+                          isActivelyProcessing
+                            ? 'translate-y-0 opacity-100'
+                            : 'translate-y-full opacity-0'
+                        }`}
+                      >
+                        <OmniSpinner />
+                      </div>
+                    )}
+                    {/* Status bar for pending approvals */}
+                    <div
+                      className={`absolute bottom-0 left-0 right-0 p-2 cursor-pointer transition-all duration-300 ease-in-out ${
+                        hasPendingApprovalsOutOfView
+                          ? 'opacity-100 translate-y-0'
+                          : 'opacity-0 translate-y-full pointer-events-none'
+                      }`}
+                      onClick={() => {
+                        const container = document.querySelector('[data-conversation-container]')
+                        if (container) {
+                          container.scrollTop = container.scrollHeight
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-center gap-1 font-mono text-xs uppercase tracking-wider text-muted-foreground bg-background/60 backdrop-blur-sm border-t border-border/50 py-1 shadow-sm hover:bg-background/80 transition-colors">
+                        <span>
+                          {pendingApprovalsCount === 1
+                            ? 'Pending Approval'
+                            : `${pendingApprovalsCount} Pending Approvals`}
+                        </span>
+                        <ChevronDown className="w-3 h-3 animate-bounce" />
+                      </div>
+                    </div>
+                  </Card>
 
-          {lastTodo && (
-            <Card className="hidden lg:flex lg:w-1/5 flex-col min-h-0">
-              <CardContent className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <TodoWidget event={lastTodo} />
-              </CardContent>
-            </Card>
+                  {/* Todo Widget - only show when ephemeral chat is closed */}
+                  {lastTodo && !isEphemeralChatOpen && (
+                    <Card className="hidden lg:flex lg:w-1/5 flex-col min-h-0">
+                      <CardContent className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                        <TodoWidget event={lastTodo} />
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+            </div>
+          </ResizablePanel>
+
+          {/* Ephemeral Chat Handle - must be direct child, not wrapped in Fragment */}
+          {isEphemeralChatOpen && (
+            <ResizableHandle
+              withHandle
+              className="mx-1 hover:bg-accent/50 transition-colors"
+              onDoubleClick={() => setEphemeralChatFullTakeover(!ephemeralChatFullTakeover)}
+            />
           )}
-        </div>
+          {/* Ephemeral Chat Panel - must be direct child, not wrapped in Fragment */}
+          {isEphemeralChatOpen && (
+            <ResizablePanel
+              id="ephemeral-chat-panel"
+              defaultSize={ephemeralChatFullTakeover ? 95 : 30}
+              minSize={20}
+              maxSize={ephemeralChatFullTakeover ? 95 : 70}
+              className="overflow-hidden"
+            >
+              <div className="h-full w-full overflow-hidden">
+                <EphemeralChatPanel
+                  session={session}
+                  onClose={() => {
+                    setEphemeralChatOpen(false)
+                    setEphemeralChatFullTakeover(false)
+                  }}
+                />
+              </div>
+            </ResizablePanel>
+          )}
+        </ResizablePanelGroup>
 
         {/* Active session input */}
         <ActiveSessionInput
@@ -1074,6 +1178,16 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
           onConfirm={handleDeleteConfirm}
           onCancel={handleDeleteCancel}
         />
+
+        {/* Commit Dialog */}
+        {session.workingDir && (
+          <CommitDialog
+            open={commitDialogOpen}
+            onOpenChange={setCommitDialogOpen}
+            session={session}
+            conversation={events}
+          />
+        )}
       </section>
     </HotkeyScopeBoundary>
   )

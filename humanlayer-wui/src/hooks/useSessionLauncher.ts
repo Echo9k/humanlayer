@@ -37,7 +37,7 @@ interface LauncherState {
   setConfig: (config: SessionConfig) => void
   setGPrefixMode: (enabled: boolean) => void
   launchSession: () => Promise<void>
-  createNewSession: () => Promise<void>
+  createNewSession: (workingDir?: string) => Promise<void>
   openSessionById: (sessionId: string) => void
   reset: () => void
 }
@@ -369,12 +369,12 @@ export const useSessionLauncher = create<LauncherState>((set, get) => ({
     }
   },
 
-  createNewSession: async () => {
+  createNewSession: async (workingDir?: string) => {
     // Create draft session and navigate directly
     try {
       const response = await daemonClient.launchSession({
         query: '', // Empty initial query for draft
-        working_dir: getLastWorkingDir() || '~/',
+        working_dir: workingDir || getLastWorkingDir() || '~/',
         draft: true, // Create as draft
       })
 

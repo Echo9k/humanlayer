@@ -38,19 +38,21 @@ func getHTTPShutdownTimeout() time.Duration {
 
 // HTTPServer manages the REST API server
 type HTTPServer struct {
-	config           *config.Config
-	router           *gin.Engine
-	sessionManager   session.SessionManager
-	sessionHandlers  *handlers.SessionHandlers
-	approvalHandlers *handlers.ApprovalHandlers
-	fileHandlers     *handlers.FileHandlers
-	sseHandler       *handlers.SSEHandler
-	proxyHandler     *handlers.ProxyHandler
-	configHandler    *handlers.ConfigHandler
-	settingsHandlers *handlers.SettingsHandlers
-	agentHandlers    *handlers.AgentHandlers
-	approvalManager  approval.Manager
-	eventBus         bus.EventBus
+	config               *config.Config
+	router               *gin.Engine
+	sessionManager       session.SessionManager
+	sessionHandlers      *handlers.SessionHandlers
+	approvalHandlers     *handlers.ApprovalHandlers
+	fileHandlers         *handlers.FileHandlers
+	sseHandler           *handlers.SSEHandler
+	proxyHandler         *handlers.ProxyHandler
+	configHandler        *handlers.ConfigHandler
+	settingsHandlers     *handlers.SettingsHandlers
+	agentHandlers        *handlers.AgentHandlers
+	ephemeralChatHandler *handlers.EphemeralChatHandler
+	gitHandler           *handlers.GitHandler
+	approvalManager      approval.Manager
+	eventBus             bus.EventBus
 
 	serverMu sync.Mutex
 	server   *http.Server
@@ -96,21 +98,25 @@ func NewHTTPServer(
 	configHandler := handlers.NewConfigHandler()
 	settingsHandlers := handlers.NewSettingsHandlers(conversationStore)
 	agentHandlers := handlers.NewAgentHandlers()
+	ephemeralChatHandler := handlers.NewEphemeralChatHandler(conversationStore)
+	gitHandler := handlers.NewGitHandler(conversationStore)
 
 	return &HTTPServer{
-		config:           cfg,
-		router:           router,
-		sessionManager:   sessionManager,
-		sessionHandlers:  sessionHandlers,
-		approvalHandlers: approvalHandlers,
-		fileHandlers:     fileHandlers,
-		sseHandler:       sseHandler,
-		proxyHandler:     proxyHandler,
-		configHandler:    configHandler,
-		settingsHandlers: settingsHandlers,
-		agentHandlers:    agentHandlers,
-		approvalManager:  approvalManager,
-		eventBus:         eventBus,
+		config:               cfg,
+		router:               router,
+		sessionManager:       sessionManager,
+		sessionHandlers:      sessionHandlers,
+		approvalHandlers:     approvalHandlers,
+		fileHandlers:         fileHandlers,
+		sseHandler:           sseHandler,
+		proxyHandler:         proxyHandler,
+		configHandler:        configHandler,
+		settingsHandlers:     settingsHandlers,
+		agentHandlers:        agentHandlers,
+		ephemeralChatHandler: ephemeralChatHandler,
+		gitHandler:           gitHandler,
+		approvalManager:      approvalManager,
+		eventBus:             eventBus,
 	}
 }
 
@@ -133,6 +139,14 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 
 	// Register proxy endpoint directly (not part of strict interface)
 	v1.POST("/anthropic_proxy/:session_id/v1/messages", s.proxyHandler.ProxyAnthropicRequest)
+
+	// Register ephemeral chat endpoint (non-persistent AI queries)
+	v1.POST("/ephemeral-chat/:session_id", s.ephemeralChatHandler.HandleEphemeralChat)
+
+	// Register git endpoints (commit functionality) - use :id to match existing session routes
+	v1.GET("/sessions/:id/git/status", s.gitHandler.HandleGetGitStatus)
+	v1.POST("/sessions/:id/git/generate-commit-message", s.gitHandler.HandleGenerateCommitMessage)
+	v1.POST("/sessions/:id/git/commit", s.gitHandler.HandleCommitChanges)
 
 	// Register config status endpoint
 	v1.GET("/config/status", s.configHandler.GetConfigStatus)
@@ -167,10 +181,13 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 		"configured_port", s.config.HTTPPort,
 		"actual_address", actualAddr.String())
 
-	// Create HTTP server
+	// Create HTTP server with BaseContext so request contexts are cancelled on shutdown
 	s.serverMu.Lock()
 	s.server = &http.Server{
 		Handler: s.router,
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
 	}
 	server := s.server // Capture for goroutine
 	s.serverMu.Unlock()
@@ -183,9 +200,10 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 		}
 	}()
 
-	// Wait for context cancellation
+	// Wait for context cancellation - the daemon's explicit Shutdown() call handles cleanup
+	// We don't call Shutdown() here to avoid duplicate shutdown attempts
 	<-ctx.Done()
-	return s.Shutdown()
+	return nil
 }
 
 // Shutdown gracefully shuts down the HTTP server

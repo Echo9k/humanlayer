@@ -12,6 +12,9 @@ import { HOTKEY_SCOPES } from '@/hooks/hotkeys/scopes'
 import { DangerouslySkipPermissionsDialog } from '@/components/internal/SessionDetail/DangerouslySkipPermissionsDialog'
 import { HotkeyScopeBoundary } from '@/components/HotkeyScopeBoundary'
 import { toast } from 'sonner'
+import { FolderTree, List } from 'lucide-react'
+import { getArchiveGroupByFolderPreference, setArchiveGroupByFolderPreference } from '@/lib/preferences'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function SessionTablePage() {
   const isSessionLauncherOpen = useSessionLauncher(state => state.isOpen)
@@ -20,6 +23,17 @@ export function SessionTablePage() {
 
   // Focus source tracking
   const [, setFocusSource] = useState<'mouse' | 'keyboard' | null>(null)
+
+  // Group by folder preference for archived view
+  const [groupByFolder, setGroupByFolder] = useState(() => getArchiveGroupByFolderPreference())
+
+  const toggleGroupByFolder = useCallback(() => {
+    setGroupByFolder(prev => {
+      const newValue = !prev
+      setArchiveGroupByFolderPreference(newValue)
+      return newValue
+    })
+  }, [])
 
   // Keyboard navigation protection
   const { shouldIgnoreMouseEvent, startKeyboardNavigation } = useKeyboardNavigationProtection()
@@ -353,18 +367,40 @@ export function SessionTablePage() {
           </TabsList>
         </Tabs>
 
-        {/* Only show Create button when not in empty state for normal/drafts view */}
-        {(viewMode === ViewMode.Archived || sessions.length > 0) && (
-          <Button
-            onClick={() => {
-              navigate('/sessions/draft')
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Create <kbd className="ml-1 px-1 py-0.5 text-xs bg-muted/50 rounded">c</kbd>
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Group by folder toggle - only shown in archived view */}
+          {viewMode === ViewMode.Archived && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={toggleGroupByFolder}
+                  size="sm"
+                  variant={groupByFolder ? 'default' : 'outline'}
+                  className="gap-1.5"
+                >
+                  {groupByFolder ? <FolderTree className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                  {groupByFolder ? 'Grouped' : 'Flat'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {groupByFolder ? 'Switch to flat list view' : 'Group archived sessions by folder'}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Only show Create button when not in empty state for normal/drafts view */}
+          {(viewMode === ViewMode.Archived || sessions.length > 0) && (
+            <Button
+              onClick={() => {
+                navigate('/sessions/draft')
+              }}
+              size="sm"
+              variant="outline"
+            >
+              Create <kbd className="ml-1 px-1 py-0.5 text-xs bg-muted/50 rounded">c</kbd>
+            </Button>
+          )}
+        </div>
       </nav>
       <div ref={tableRef} tabIndex={-1} className="focus:outline-none">
         <SessionTable
@@ -391,6 +427,7 @@ export function SessionTablePage() {
           isDraftsView={viewMode === ViewMode.Drafts}
           onNavigateToSessions={() => setViewMode(ViewMode.Normal)}
           onBypassPermissions={handleBypassPermissions}
+          groupByFolder={viewMode === ViewMode.Archived && groupByFolder}
         />
       </div>
       <HotkeyScopeBoundary

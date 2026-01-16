@@ -43,6 +43,32 @@ export function useSessionNavigation({
     return elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom
   }, [])
 
+  // Helper to check if an event is a "thinking" message
+  const isThinkingEvent = useCallback((event: ConversationEvent): boolean => {
+    return Boolean(
+      event.eventType === ConversationEventType.Thinking ||
+        (event.role === 'assistant' && event.content?.startsWith('<thinking>')),
+    )
+  }, [])
+
+  // Helper to check if an event is a main conversation exchange
+  // Main exchanges are: user messages, assistant messages (excluding thinking)
+  const isMainExchange = useCallback(
+    (event: ConversationEvent): boolean => {
+      if (event.eventType !== ConversationEventType.Message) {
+        return false
+      }
+      if (event.role === 'user') {
+        return true
+      }
+      if (event.role === 'assistant' && !isThinkingEvent(event)) {
+        return true
+      }
+      return false
+    },
+    [isThinkingEvent],
+  )
+
   // Build navigable items list based on current state
   const buildNavigableItems = useCallback((): NavigableItem[] => {
     const items: NavigableItem[] = []
@@ -93,7 +119,15 @@ export function useSessionNavigation({
     return items
   }, [events, hasSubTasks, expandedTasks])
 
+  // Build filtered navigable items (main exchanges only: user + non-thinking assistant messages)
+  const buildMainExchangeItems = useCallback((): NavigableItem[] => {
+    return events
+      .filter(event => event.id !== undefined && isMainExchange(event))
+      .map(event => ({ id: event.id!, type: 'event' as const }))
+  }, [events, isMainExchange])
+
   const navigableItems = buildNavigableItems()
+  const mainExchangeItems = buildMainExchangeItems()
 
   // Navigation functions
   const focusNextEvent = useCallback(() => {
@@ -134,12 +168,96 @@ export function useSessionNavigation({
     }
   }, [focusedEventId, navigableItems, startKeyboardNavigation])
 
+  // Filtered navigation functions (main exchanges only: user + non-thinking assistant messages)
+  const focusNextMainExchange = useCallback(() => {
+    if (mainExchangeItems.length === 0) return
+
+    const currentIndex = focusedEventId
+      ? mainExchangeItems.findIndex(item => item.id === focusedEventId)
+      : -1
+
+    if (currentIndex === -1) {
+      // No event focused, or current focus is not a main exchange
+      // Find the next main exchange after the current focused event
+      if (focusedEventId) {
+        const currentEvent = events.find(e => e.id === focusedEventId)
+        if (currentEvent) {
+          // Find the first main exchange that comes after the current event
+          const currentEventIndex = events.findIndex(e => e.id === focusedEventId)
+          for (let i = currentEventIndex + 1; i < events.length; i++) {
+            const mainExchangeItem = mainExchangeItems.find(item => item.id === events[i].id)
+            if (mainExchangeItem) {
+              startKeyboardNavigation?.()
+              setFocusedEventId(mainExchangeItem.id)
+              setFocusSource('keyboard')
+              return
+            }
+          }
+        }
+      }
+      // Fall back to first main exchange
+      startKeyboardNavigation?.()
+      setFocusedEventId(mainExchangeItems[0].id)
+      setFocusSource('keyboard')
+    } else if (currentIndex < mainExchangeItems.length - 1) {
+      startKeyboardNavigation?.()
+      setFocusedEventId(mainExchangeItems[currentIndex + 1].id)
+      setFocusSource('keyboard')
+    }
+  }, [focusedEventId, mainExchangeItems, events, startKeyboardNavigation])
+
+  const focusPreviousMainExchange = useCallback(() => {
+    if (mainExchangeItems.length === 0) return
+
+    const currentIndex = focusedEventId
+      ? mainExchangeItems.findIndex(item => item.id === focusedEventId)
+      : -1
+
+    if (currentIndex === -1) {
+      // No event focused, or current focus is not a main exchange
+      // Find the previous main exchange before the current focused event
+      if (focusedEventId) {
+        const currentEventIndex = events.findIndex(e => e.id === focusedEventId)
+        if (currentEventIndex > 0) {
+          // Find the last main exchange that comes before the current event
+          for (let i = currentEventIndex - 1; i >= 0; i--) {
+            const mainExchangeItem = mainExchangeItems.find(item => item.id === events[i].id)
+            if (mainExchangeItem) {
+              startKeyboardNavigation?.()
+              setFocusedEventId(mainExchangeItem.id)
+              setFocusSource('keyboard')
+              return
+            }
+          }
+        }
+      }
+      // Fall back to last main exchange
+      startKeyboardNavigation?.()
+      setFocusedEventId(mainExchangeItems[mainExchangeItems.length - 1].id)
+      setFocusSource('keyboard')
+    } else if (currentIndex > 0) {
+      startKeyboardNavigation?.()
+      setFocusedEventId(mainExchangeItems[currentIndex - 1].id)
+      setFocusSource('keyboard')
+    }
+  }, [focusedEventId, mainExchangeItems, events, startKeyboardNavigation])
+
   // Keyboard navigation
-  useHotkeys('j, ArrowDown', focusNextEvent, {
+  // j/k: Navigate all items (including tool calls, thinking, etc.)
+  useHotkeys('j', focusNextEvent, {
     enabled: !expandedToolResult && !disabled,
     scopes: [scope],
   })
-  useHotkeys('k, ArrowUp', focusPreviousEvent, {
+  useHotkeys('k', focusPreviousEvent, {
+    enabled: !expandedToolResult && !disabled,
+    scopes: [scope],
+  })
+  // ArrowDown/ArrowUp: Navigate main exchanges only (user + non-thinking assistant messages)
+  useHotkeys('ArrowDown', focusNextMainExchange, {
+    enabled: !expandedToolResult && !disabled,
+    scopes: [scope],
+  })
+  useHotkeys('ArrowUp', focusPreviousMainExchange, {
     enabled: !expandedToolResult && !disabled,
     scopes: [scope],
   })

@@ -33,7 +33,15 @@ import { notificationService, type NotificationOptions } from '@/services/Notifi
 import { useTheme } from '@/contexts/ThemeContext'
 import { formatMcpToolName, getSessionNotificationText } from '@/utils/formatting'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { MessageCircle, Bug, HelpCircle, BookOpen, Settings, AlertCircle, RefreshCw } from 'lucide-react'
+import {
+  MessageCircle,
+  Bug,
+  HelpCircle,
+  BookOpen,
+  Settings,
+  AlertCircle,
+  RefreshCw,
+} from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { DebugPanel } from '@/components/DebugPanel'
 import { notifyLogLocation } from '@/lib/log-notification'

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	claudecode "github.com/humanlayer/humanlayer/claudecode-go"
-	"gopkg.in/yaml.v3"
 	"github.com/humanlayer/humanlayer/hld/api"
 	"github.com/humanlayer/humanlayer/hld/api/mapper"
 	"github.com/humanlayer/humanlayer/hld/approval"
@@ -24,6 +23,7 @@ import (
 	"github.com/humanlayer/humanlayer/hld/session"
 	"github.com/humanlayer/humanlayer/hld/store"
 	"github.com/sahilm/fuzzy"
+	"gopkg.in/yaml.v3"
 )
 
 type SessionHandlers struct {
@@ -2011,9 +2011,9 @@ func (h *SessionHandlers) BulkDeleteSessions(ctx context.Context, req api.BulkDe
 		// Partial success
 		return api.BulkDeleteSessions207JSONResponse{
 			Data: struct {
-				Deleted        []string `json:"deleted"`
+				Deleted        []string  `json:"deleted"`
 				FailedSessions *[]string `json:"failed_sessions,omitempty"`
-				Success        bool     `json:"success"`
+				Success        bool      `json:"success"`
 			}{
 				Success:        false,
 				Deleted:        deleted,
@@ -2024,13 +2024,18 @@ func (h *SessionHandlers) BulkDeleteSessions(ctx context.Context, req api.BulkDe
 
 	return api.BulkDeleteSessions200JSONResponse{
 		Data: struct {
-			Deleted        []string `json:"deleted"`
+			Deleted        []string  `json:"deleted"`
 			FailedSessions *[]string `json:"failed_sessions,omitempty"`
-			Success        bool     `json:"success"`
+			Success        bool      `json:"success"`
 		}{
-			Success:        success,
-			Deleted:        deleted,
-			FailedSessions: func() *[]string { if len(failed) > 0 { return &failed }; return nil }(),
+			Success: success,
+			Deleted: deleted,
+			FailedSessions: func() *[]string {
+				if len(failed) > 0 {
+					return &failed
+				}
+				return nil
+			}(),
 		},
 	}, nil
 }

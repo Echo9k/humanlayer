@@ -282,11 +282,20 @@ export default function CommandPaletteMenu({ ref }: { ref: RefObject<HTMLDivElem
         e.preventDefault()
         const option = allOptions[selectedMenuIndex]
         if (option) {
-          option.action()
+          // Shift+Enter on a session creates a new session with the same working directory
+          if (e.shiftKey && option.type === 'session' && option.workingDir) {
+            trackEvent(POSTHOG_EVENTS.COMMAND_LAUNCHER_SELECTION, {
+              command_type: 'session',
+              command_category: 'create_session_from_path',
+            })
+            createNewSession(option.workingDir)
+          } else {
+            option.action()
+          }
         }
       }
     },
-    [allOptions, selectedMenuIndex],
+    [allOptions, selectedMenuIndex, createNewSession, trackEvent],
   )
 
   useEffect(() => {
@@ -440,6 +449,7 @@ export default function CommandPaletteMenu({ ref }: { ref: RefObject<HTMLDivElem
         <div className="flex items-center space-x-3">
           <span>↑↓/Tab Navigate</span>
           <span>↵ Select</span>
+          <span>⇧↵ New session here</span>
         </div>
         <span>ESC Close</span>
       </div>

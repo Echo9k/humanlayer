@@ -23,6 +23,7 @@ export const HOTKEY_SCOPES = {
   ADDITIONAL_DIRECTORIES: 'additionalDirectories',
   SESSION_LAUNCHER: 'sessions.launcher',
   TELEMETRY_MODAL: 'telemetry-modal',
+  COMMIT_DIALOG: 'sessions.details.commitDialog',
 } as const
 
 export type HotkeyScope = (typeof HOTKEY_SCOPES)[keyof typeof HOTKEY_SCOPES]

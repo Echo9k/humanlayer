@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronUp, FolderOpen, Plus, X, Lock, Copy, CircleX } from 'lucide-react'
+import { ChevronDown, ChevronUp, FolderOpen, Plus, X, Lock, Copy, CircleX, ArrowUp } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ interface AdditionalDirectoriesDropdownProps {
   directories: string[]
   sessionStatus: SessionStatus
   onDirectoriesChange?: (directories: string[]) => void | Promise<void>
+  onWorkingDirChange?: (workingDir: string, additionalDirectories: string[]) => void | Promise<void>
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
@@ -29,6 +30,7 @@ export function AdditionalDirectoriesDropdown({
   directories,
   sessionStatus,
   onDirectoriesChange,
+  onWorkingDirChange,
   open: externalOpen,
   onOpenChange: externalOnOpenChange,
 }: AdditionalDirectoriesDropdownProps) {
@@ -46,6 +48,7 @@ export function AdditionalDirectoriesDropdown({
   const [isAdding, setIsAdding] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [directoryExists, setDirectoryExists] = useState<boolean | null>(null)
+  const [isShiftPressed, setIsShiftPressed] = useState(false)
   const validationTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Add refs for focus management
@@ -284,6 +287,30 @@ export function AdditionalDirectoriesDropdown({
     }
   }, [newDirectory])
 
+  // Track shift key state for swap functionality
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(true)
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(false)
+      }
+    }
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown)
+      window.addEventListener('keyup', handleKeyUp)
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [isOpen])
+
   const handleAddDirectory = async (directoryPath?: string) => {
     const pathToAdd = directoryPath || newDirectory
     const trimmed = pathToAdd.trim()
@@ -350,6 +377,38 @@ export function AdditionalDirectoriesDropdown({
     } catch {
       toast.error('Failed to remove directory')
       // Revert the local change on error
+      setLocalDirectories(directories)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  // Swap an additional directory with the working directory (make it primary)
+  const handleMakePrimary = async (dirToPromote: string) => {
+    if (!onWorkingDirChange) {
+      toast.error('Cannot change working directory for this session')
+      return
+    }
+
+    setIsUpdating(true)
+    try {
+      // The old working dir becomes an additional directory, replacing the promoted one
+      const newAdditionalDirs = localDirectories.filter(dir => dir !== dirToPromote).concat(workingDir)
+
+      setLocalDirectories(newAdditionalDirs)
+      await onWorkingDirChange(dirToPromote, newAdditionalDirs)
+
+      // Show appropriate message based on session status
+      if (sessionStatus === 'running' || sessionStatus === 'starting') {
+        toast.success('Working directory changed - will apply at next message')
+      } else {
+        toast.success('Working directory changed')
+      }
+    } catch (error) {
+      toast.error('Failed to change working directory', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      })
+      // Revert local state on error
       setLocalDirectories(directories)
     } finally {
       setIsUpdating(false)
@@ -498,22 +557,63 @@ export function AdditionalDirectoriesDropdown({
                       focusedIndex === index && 'bg-accent/20',
                     )}
                   >
-                    <span className="font-mono text-xs text-muted-foreground">{dir}</span>
-                    {onDirectoriesChange && (
+                    <span className="font-mono text-xs text-muted-foreground truncate flex-1">
+                      {dir}
+                    </span>
+                    <div className="flex items-center gap-0.5">
+                      {/* Copy button - always visible on hover */}
                       <Button
-                        ref={el => (directoryRefs.current[index] = el)}
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleRemoveDirectory(dir)}
-                        disabled={isUpdating}
+                        onClick={e => {
+                          e.stopPropagation()
+                          copyToClipboard(dir)
+                        }}
                         className={cn(
                           'h-5 w-5 p-0 transition-opacity focus:outline-none focus:ring-0',
                           focusedIndex === index ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
                         )}
+                        title="Copy directory path"
                       >
-                        <X className="h-3 w-3" />
+                        <Copy className="h-3 w-3" />
                       </Button>
-                    )}
+                      {/* Swap/Remove button */}
+                      {onDirectoriesChange && (
+                        <Button
+                          ref={el => (directoryRefs.current[index] = el)}
+                          size="sm"
+                          variant={isShiftPressed && onWorkingDirChange ? 'default' : 'ghost'}
+                          onClick={() => {
+                            if (isShiftPressed && onWorkingDirChange) {
+                              handleMakePrimary(dir)
+                            } else {
+                              handleRemoveDirectory(dir)
+                            }
+                          }}
+                          disabled={isUpdating}
+                          className={cn(
+                            'h-5 w-5 p-0 transition-opacity focus:outline-none focus:ring-0',
+                            focusedIndex === index
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100',
+                            isShiftPressed &&
+                              onWorkingDirChange &&
+                              'opacity-100 bg-primary text-primary-foreground',
+                          )}
+                          title={
+                            isShiftPressed && onWorkingDirChange
+                              ? 'Make primary (swap with working directory)'
+                              : 'Remove directory'
+                          }
+                        >
+                          {isShiftPressed && onWorkingDirChange ? (
+                            <ArrowUp className="h-3 w-3" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

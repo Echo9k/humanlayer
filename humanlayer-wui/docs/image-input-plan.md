@@ -7,6 +7,7 @@ Add support for attaching images to approval responses (feedback) and passing im
 ## Architecture
 
 ### Image Flow
+
 ```
 User Input (paste/drop/picker)
     │
@@ -33,6 +34,7 @@ Daemon includes images in Claude response (MCP protocol)
 ```
 
 ### Storage Strategy
+
 - **Location**: `~/.humanlayer/images/{session_id}/`
 - **Naming**: `{timestamp_ms}-{uuid_short}.{ext}`
 - **Cleanup**: Images deleted when session is hard-deleted
@@ -52,7 +54,7 @@ interface SavedImage {
   filePath: string
   fileName: string
   mimeType: string
-  thumbnailDataUrl: string  // base64 data URL for preview
+  thumbnailDataUrl: string // base64 data URL for preview
   sizeBytes: number
 }
 
@@ -72,6 +74,7 @@ interface ImageStorageService {
 ```
 
 **Implementation details:**
+
 - Use Tauri FS plugin (`@tauri-apps/plugin-fs`) to write files
 - Generate thumbnail client-side using canvas (max 128x128)
 - Store in `~/.humanlayer/images/{session_id}/`
@@ -96,6 +99,7 @@ interface ImageNodeAttrs {
 ```
 
 **Visual design:**
+
 - Inline-block element with 64x64 thumbnail
 - Hover: show full filename in tooltip, X button to remove
 - Click: open in default viewer (optional)
@@ -113,7 +117,7 @@ const ImageNode = Node.create({
   name: 'imageAttachment',
   group: 'inline',
   inline: true,
-  atom: true,  // Treated as single unit, not editable content
+  atom: true, // Treated as single unit, not editable content
 
   addAttributes() {
     return {
@@ -211,7 +215,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 async function handleImagePicker() {
   const selected = await open({
     multiple: true,
-    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }]
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
   })
 
   if (selected) {
@@ -228,6 +232,7 @@ async function handleImagePicker() {
 
 For MVP, recommend relying on system screenshot → clipboard → paste.
 If custom capture needed later:
+
 - macOS: `screencapture -c` (to clipboard) → user pastes
 - Linux: Check for `gnome-screenshot`, `spectacle`, `scrot` availability
 - Fallback: Show instruction toast "Use system screenshot, then paste"
@@ -477,22 +482,24 @@ bun add @tauri-apps/plugin-dialog
 ### Image Cleanup Strategy
 
 **Option A: Cleanup on session hard-delete**
+
 - When `hardDeleteEmptyDraftSession` or session deletion occurs
 - Daemon removes `~/.humanlayer/images/{session_id}/` directory
 
 **Option B: Periodic cleanup (future enhancement)**
+
 - Background job removes orphaned images
 - Images older than 30 days with no associated approval
 
 ### Error Handling
 
-| Scenario | Handling |
-|----------|----------|
-| Image too large (>10MB) | Toast error, don't save |
-| Invalid image format | Toast error, skip file |
-| Disk full | Toast error, suggest cleanup |
+| Scenario                     | Handling                                  |
+| ---------------------------- | ----------------------------------------- |
+| Image too large (>10MB)      | Toast error, don't save                   |
+| Invalid image format         | Toast error, skip file                    |
+| Disk full                    | Toast error, suggest cleanup              |
 | Image file missing on submit | Log warning, submit without missing image |
-| Daemon can't read image | Log error, continue with other images |
+| Daemon can't read image      | Log error, continue with other images     |
 
 ---
 
@@ -526,18 +533,18 @@ bun add @tauri-apps/plugin-dialog
 
 ## Files Changed Summary
 
-| File | Change Type | Description |
-|------|-------------|-------------|
-| `humanlayer-wui/src/services/ImageStorageService.ts` | **New** | Image save, validate, thumbnail generation |
-| `humanlayer-wui/src/components/.../ImageNode.tsx` | **New** | TipTap node component for image preview |
-| `humanlayer-wui/src/components/.../editorImageUtils.ts` | **New** | Editor image manipulation utilities |
-| `humanlayer-wui/src/components/.../ResponseEditor.tsx` | Modify | Add ImageNode extension |
-| `humanlayer-wui/src/components/.../ActiveSessionInput.tsx` | Modify | Add paste, extend drop handlers |
-| `humanlayer-wui/src/lib/daemon/http-client.ts` | Modify | Add images param to decision methods |
-| `humanlayer-wui/src/components/.../useSessionApprovals.ts` | Modify | Extract & pass images on submit |
-| `hld/api/openapi.yaml` | Modify | Add image_paths, image serving endpoint |
-| `hld/api/handlers/approvals.go` | Modify | Handle image_paths, validate, encode |
-| `hld/store/sqlite.go` | Modify | Add approval_images table migration |
-| `hld/approval/manager.go` | Modify | Process images in decision flow |
-| `humanlayer-wui/src-tauri/Cargo.toml` | Modify | Add tauri-plugin-dialog |
-| `humanlayer-wui/src-tauri/capabilities/default.json` | Modify | Add dialog permissions |
+| File                                                       | Change Type | Description                                |
+| ---------------------------------------------------------- | ----------- | ------------------------------------------ |
+| `humanlayer-wui/src/services/ImageStorageService.ts`       | **New**     | Image save, validate, thumbnail generation |
+| `humanlayer-wui/src/components/.../ImageNode.tsx`          | **New**     | TipTap node component for image preview    |
+| `humanlayer-wui/src/components/.../editorImageUtils.ts`    | **New**     | Editor image manipulation utilities        |
+| `humanlayer-wui/src/components/.../ResponseEditor.tsx`     | Modify      | Add ImageNode extension                    |
+| `humanlayer-wui/src/components/.../ActiveSessionInput.tsx` | Modify      | Add paste, extend drop handlers            |
+| `humanlayer-wui/src/lib/daemon/http-client.ts`             | Modify      | Add images param to decision methods       |
+| `humanlayer-wui/src/components/.../useSessionApprovals.ts` | Modify      | Extract & pass images on submit            |
+| `hld/api/openapi.yaml`                                     | Modify      | Add image_paths, image serving endpoint    |
+| `hld/api/handlers/approvals.go`                            | Modify      | Handle image_paths, validate, encode       |
+| `hld/store/sqlite.go`                                      | Modify      | Add approval_images table migration        |
+| `hld/approval/manager.go`                                  | Modify      | Process images in decision flow            |
+| `humanlayer-wui/src-tauri/Cargo.toml`                      | Modify      | Add tauri-plugin-dialog                    |
+| `humanlayer-wui/src-tauri/capabilities/default.json`       | Modify      | Add dialog permissions                     |

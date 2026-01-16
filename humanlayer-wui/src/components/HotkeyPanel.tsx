@@ -73,6 +73,7 @@ const hotkeyData = [
   { category: 'Session Detail', key: 'Enter', description: 'Focus response input' },
   { category: 'Session Detail', key: '⌘+Enter', description: 'Submit response' },
   { category: 'Session Detail', key: '⌥+Y', description: 'Toggle bypass permissions' },
+  { category: 'Session Detail', key: '⌘+⇧+E', description: 'Toggle ephemeral chat' },
 ]
 
 export const KeyboardShortcut = ({ keyString }: { keyString: string }) => {

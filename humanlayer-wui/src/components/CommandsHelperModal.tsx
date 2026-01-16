@@ -96,7 +96,11 @@ export function CommandsHelperModal({ open, onOpenChange }: CommandsHelperModalP
       const pos = state.selection.from
 
       // Insert command text with trailing space
-      responseEditor.chain().focus().insertContentAt(pos, cmd.name + ' ').run()
+      responseEditor
+        .chain()
+        .focus()
+        .insertContentAt(pos, cmd.name + ' ')
+        .run()
 
       // Close modal
       onOpenChange(false)
@@ -228,11 +232,7 @@ export function CommandsHelperModal({ open, onOpenChange }: CommandsHelperModalP
                   {!isLoading &&
                     !error &&
                     Object.entries(groupedCommands).map(([source, cmds]) => (
-                      <CommandGroup
-                        key={source}
-                        heading={formatSourceName(source)}
-                        className="py-2"
-                      >
+                      <CommandGroup key={source} heading={formatSourceName(source)} className="py-2">
                         {cmds.map(cmd => (
                           <CommandItem
                             key={cmd.name}

@@ -35,7 +35,7 @@ export function extractImagesFromEditor(editor: Editor | null): ImageAttachment[
 
   const images: ImageAttachment[] = []
 
-  editor.state.doc.descendants((node) => {
+  editor.state.doc.descendants(node => {
     if (node.type.name === 'imageAttachment') {
       const { filePath, fileName, mimeType } = node.attrs
       if (filePath && mimeType) {
@@ -100,7 +100,7 @@ export function countImagesInEditor(editor: Editor | null): number {
 
   let count = 0
 
-  editor.state.doc.descendants((node) => {
+  editor.state.doc.descendants(node => {
     if (node.type.name === 'imageAttachment') {
       count++
     }

@@ -103,6 +103,16 @@ interface StoreState {
   setSettingsDialogOpen: (open: boolean) => void
   isEditingSessionTitle: boolean
   setIsEditingSessionTitle: (editing: boolean) => void
+  isCommitDialogOpen: boolean
+  setCommitDialogOpen: (open: boolean) => void
+
+  /* Ephemeral Chat State */
+  isEphemeralChatOpen: boolean
+  setEphemeralChatOpen: (open: boolean) => void
+  ephemeralChatWidth: number // Percentage (20-80)
+  setEphemeralChatWidth: (width: number) => void
+  ephemeralChatFullTakeover: boolean
+  setEphemeralChatFullTakeover: (takeover: boolean) => void
 
   /* Auto-scroll State */
   autoScrollEnabled: boolean
@@ -1083,6 +1093,17 @@ export const useStore = create<StoreState>((set, get) => {
     setSettingsDialogOpen: (open: boolean) => set({ isSettingsDialogOpen: open }),
     isEditingSessionTitle: false,
     setIsEditingSessionTitle: (editing: boolean) => set({ isEditingSessionTitle: editing }),
+    isCommitDialogOpen: false,
+    setCommitDialogOpen: (open: boolean) => set({ isCommitDialogOpen: open }),
+
+    // Ephemeral Chat state
+    isEphemeralChatOpen: false,
+    setEphemeralChatOpen: (open: boolean) => set({ isEphemeralChatOpen: open }),
+    ephemeralChatWidth: 30, // Default 30%
+    setEphemeralChatWidth: (width: number) =>
+      set({ ephemeralChatWidth: Math.min(80, Math.max(20, width)) }),
+    ephemeralChatFullTakeover: false,
+    setEphemeralChatFullTakeover: (takeover: boolean) => set({ ephemeralChatFullTakeover: takeover }),
 
     // Auto-scroll state
     autoScrollEnabled: true, // Default to enabled

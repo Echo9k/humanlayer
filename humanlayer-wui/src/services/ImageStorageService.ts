@@ -1,12 +1,5 @@
 import { homeDir, join } from '@tauri-apps/api/path'
-import {
-  mkdir,
-  writeFile,
-  exists,
-  readFile,
-  remove,
-  readDir,
-} from '@tauri-apps/plugin-fs'
+import { mkdir, writeFile, exists, readFile, remove, readDir } from '@tauri-apps/plugin-fs'
 import { logger } from '@/lib/logging'
 
 // Constants
@@ -15,12 +8,7 @@ const HUMANLAYER_DIR = '.humanlayer'
 const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024 // 10MB
 const MAX_IMAGES_PER_RESPONSE = 5
 const THUMBNAIL_MAX_SIZE = 128 // pixels
-const SUPPORTED_MIME_TYPES = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-]
+const SUPPORTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
 
 export interface SavedImage {
   filePath: string

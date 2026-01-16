@@ -1,9 +1,19 @@
+import React from 'react'
 import { Session, SessionStatus } from '@/lib/daemon/types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useEffect, useRef, useState } from 'react'
-import { CircleOff, CheckSquare, Square, Pencil, ShieldOff } from 'lucide-react'
+import {
+  CircleOff,
+  CheckSquare,
+  Square,
+  Pencil,
+  ShieldOff,
+  ChevronRight,
+  ChevronDown,
+  Folder,
+} from 'lucide-react'
 import { SentryErrorBoundary } from '@/components/ErrorBoundary'
 import { getStatusTextClass } from '@/utils/component-utils'
 import { usePostHogTracking } from '@/hooks/usePostHogTracking'
@@ -31,6 +41,7 @@ import { ArchivedSessionsEmptyState } from './ArchivedSessionsEmptyState'
 import { showUndoToast } from '@/utils/undoToast'
 import { TOAST_IDS } from '@/constants/toastIds'
 import { DeleteSessionDialog } from './SessionDetail/components/DeleteSessionDialog'
+import { groupSessionsByFolder, getShortFolderName } from '@/utils/sessionGrouping'
 
 interface SessionTableProps {
   sessions: Session[]
@@ -46,6 +57,7 @@ interface SessionTableProps {
   isDraftsView?: boolean // Add this to indicate if showing drafts view
   onNavigateToSessions?: () => void // For archived view navigation
   onBypassPermissions?: (sessionIds: string[]) => void
+  groupByFolder?: boolean // Group sessions by working directory
 }
 
 function SessionTableInner({
@@ -62,6 +74,7 @@ function SessionTableInner({
   isDraftsView = false,
   onNavigateToSessions,
   onBypassPermissions,
+  groupByFolder = false,
 }: SessionTableProps) {
   const isSessionLauncherOpen = useSessionLauncher(state => state.isOpen)
   const tableRef = useRef<HTMLTableElement>(null)
@@ -80,6 +93,24 @@ function SessionTableInner({
   // State for delete confirmation dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionsToDelete, setSessionsToDelete] = useState<string[]>([])
+
+  // State for collapsed folder groups (only used when groupByFolder is enabled)
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+
+  const toggleFolderCollapsed = (folder: string) => {
+    setCollapsedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(folder)) {
+        next.delete(folder)
+      } else {
+        next.add(folder)
+      }
+      return next
+    })
+  }
+
+  // Group sessions by folder when groupByFolder is enabled
+  const sessionGroups = groupByFolder ? groupSessionsByFolder(sessions) : null
 
   // Determine scope based on archived state
   const tableScope = isArchivedView ? HOTKEY_SCOPES.SESSIONS_ARCHIVED : HOTKEY_SCOPES.SESSIONS
@@ -681,9 +712,7 @@ function SessionTableInner({
       }
 
       // Get session objects to check if they're archived
-      const sessionObjects = sessionIds
-        .map(id => sessions.find(s => s.id === id))
-        .filter(Boolean)
+      const sessionObjects = sessionIds.map(id => sessions.find(s => s.id === id)).filter(Boolean)
 
       // Check if all sessions are archived
       const allArchived = sessionObjects.every(s => s?.archived)
@@ -701,7 +730,10 @@ function SessionTableInner({
     },
     {
       scopes: [tableScope],
-      enabled: !isSessionLauncherOpen && !isInlineRenameOpen && (focusedSession !== null || selectedSessions.size > 0),
+      enabled:
+        !isSessionLauncherOpen &&
+        !isInlineRenameOpen &&
+        (focusedSession !== null || selectedSessions.size > 0),
       preventDefault: true,
     },
     [focusedSession, sessions, selectedSessions, isInlineRenameOpen],
@@ -734,6 +766,187 @@ function SessionTableInner({
     setSessionsToDelete([])
   }
 
+  // Helper to render a session row
+  const renderSessionRow = (session: Session, hideWorkingDir = false) => (
+    <TableRow
+      key={session.id}
+      data-session-id={session.id}
+      onMouseEnter={() => {
+        handleFocusSession?.(session)
+      }}
+      onMouseLeave={() => {
+        handleBlurSession?.()
+      }}
+      onClick={() => handleRowClick(session)}
+      className={cn(
+        'cursor-pointer transition-colors duration-200 border-l-2',
+        focusedSession?.id === session.id
+          ? ['border-l-[var(--terminal-accent)]', 'bg-accent/10']
+          : 'border-l-transparent',
+        session.archived && 'opacity-60',
+      )}
+    >
+      <TableCell
+        className="w-[40px]"
+        onClick={e => {
+          e.stopPropagation()
+          toggleSessionSelection(session.id)
+        }}
+      >
+        <div className="flex items-center justify-center">
+          <div
+            className={cn(
+              'transition-all duration-200 ease-in-out',
+              focusedSession?.id === session.id || selectedSessions.size > 0
+                ? 'opacity-100 scale-100'
+                : 'opacity-0 scale-75',
+            )}
+          >
+            {selectedSessions.has(session.id) ? (
+              <CheckSquare className="w-4 h-4 text-primary" />
+            ) : (
+              <Square className="w-4 h-4 text-muted-foreground" />
+            )}
+          </div>
+        </div>
+      </TableCell>
+      {!isDraftsView && (
+        <TableCell className={getStatusTextClass(session.status)}>
+          {session.status !== SessionStatus.Failed && (
+            <>
+              {session.dangerouslySkipPermissions ? (
+                <>
+                  <ShieldOff
+                    className="inline-block w-4 h-4 text-[var(--terminal-error)] animate-pulse-error align-text-bottom"
+                    strokeWidth={3}
+                  />{' '}
+                </>
+              ) : session.autoAcceptEdits ? (
+                <span className="align-text-top text-[var(--terminal-warning)] text-base leading-none animate-pulse-warning">
+                  {'⏵⏵ '}
+                </span>
+              ) : null}
+            </>
+          )}
+          {renderSessionStatus(session)}
+        </TableCell>
+      )}
+      {!hideWorkingDir && (
+        <TableCell className="max-w-[200px]">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* Sets direction RTL with ellipsis at the start, and uses an inner <bdo> LTR override to keep the entire path (slashes/tilde) in logical order*/}
+              <span
+                className="block truncate cursor-help text-sm"
+                style={{
+                  direction: 'rtl',
+                  textAlign: 'left',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                <bdo dir="ltr" style={{ unicodeBidi: 'bidi-override' }}>
+                  {session.workingDir || '-'}
+                </bdo>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[600px]">
+              <span className="font-mono text-sm">{session.workingDir || 'No working directory'}</span>
+            </TooltipContent>
+          </Tooltip>
+        </TableCell>
+      )}
+      <TableCell>
+        {editingSessionId === session.id ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  saveEdit()
+                } else if (e.key === 'Escape') {
+                  e.preventDefault()
+                  cancelEdit()
+                }
+              }}
+              onClick={e => e.stopPropagation()}
+              className="h-7 text-sm"
+              autoFocus
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={e => {
+                e.stopPropagation()
+                saveEdit()
+              }}
+              className="h-7 px-2"
+            >
+              Save
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={e => {
+                e.stopPropagation()
+                cancelEdit()
+              }}
+              className="h-7 px-2"
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 group">
+            <span>
+              {renderHighlightedText(
+                session.title ||
+                  session.summary ||
+                  (session.query ? truncate(session.query, 80) : '') ||
+                  truncate(extractTextFromEditorState(session.editorState), 80),
+                session.id,
+              )}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={e => {
+                e.stopPropagation()
+                startEdit(session.id, session.title || '', session.summary || '')
+              }}
+              className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </TableCell>
+      <TableCell>{session.model || <CircleOff className="w-4 h-4" />}</TableCell>
+      <TableCell>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help">{formatTimestamp(session.createdAt)}</span>
+          </TooltipTrigger>
+          <TooltipContent>{formatAbsoluteTimestamp(session.createdAt)}</TooltipContent>
+        </Tooltip>
+      </TableCell>
+      <TableCell>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help">{formatTimestamp(session.lastActivityAt)}</span>
+          </TooltipTrigger>
+          <TooltipContent>{formatAbsoluteTimestamp(session.lastActivityAt)}</TooltipContent>
+        </Tooltip>
+      </TableCell>
+    </TableRow>
+  )
+
+  // Calculate column count for folder header colspan
+  const columnCount = isDraftsView ? 6 : 7
+
   return (
     <HotkeyScopeBoundary
       scope={tableScope}
@@ -747,7 +960,7 @@ function SessionTableInner({
               <TableRow>
                 <TableHead className="w-[40px]"></TableHead>
                 {!isDraftsView && <TableHead>Status</TableHead>}
-                <TableHead>Working Directory</TableHead>
+                {!groupByFolder && <TableHead>Working Directory</TableHead>}
                 <TableHead>Title</TableHead>
                 <TableHead>Model</TableHead>
                 <TableHead>Started</TableHead>
@@ -755,182 +968,48 @@ function SessionTableInner({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sessions.map(session => (
-                <TableRow
-                  key={session.id}
-                  data-session-id={session.id}
-                  onMouseEnter={() => {
-                    handleFocusSession?.(session)
-                  }}
-                  onMouseLeave={() => {
-                    handleBlurSession?.()
-                  }}
-                  onClick={() => handleRowClick(session)}
-                  className={cn(
-                    'cursor-pointer transition-colors duration-200 border-l-2',
-                    focusedSession?.id === session.id
-                      ? ['border-l-[var(--terminal-accent)]', 'bg-accent/10']
-                      : 'border-l-transparent',
-                    session.archived && 'opacity-60',
-                  )}
-                >
-                  <TableCell
-                    className="w-[40px]"
-                    onClick={e => {
-                      e.stopPropagation()
-                      toggleSessionSelection(session.id)
-                    }}
-                  >
-                    <div className="flex items-center justify-center">
-                      <div
-                        className={cn(
-                          'transition-all duration-200 ease-in-out',
-                          focusedSession?.id === session.id || selectedSessions.size > 0
-                            ? 'opacity-100 scale-100'
-                            : 'opacity-0 scale-75',
-                        )}
-                      >
-                        {selectedSessions.has(session.id) ? (
-                          <CheckSquare className="w-4 h-4 text-primary" />
-                        ) : (
-                          <Square className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  {!isDraftsView && (
-                    <TableCell className={getStatusTextClass(session.status)}>
-                      {session.status !== SessionStatus.Failed && (
-                        <>
-                          {session.dangerouslySkipPermissions ? (
-                            <>
-                              <ShieldOff
-                                className="inline-block w-4 h-4 text-[var(--terminal-error)] animate-pulse-error align-text-bottom"
-                                strokeWidth={3}
-                              />{' '}
-                            </>
-                          ) : session.autoAcceptEdits ? (
-                            <span className="align-text-top text-[var(--terminal-warning)] text-base leading-none animate-pulse-warning">
-                              {'⏵⏵ '}
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                      {renderSessionStatus(session)}
-                    </TableCell>
-                  )}
-                  <TableCell className="max-w-[200px]">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        {/* Sets direction RTL with ellipsis at the start, and uses an inner <bdo> LTR override to keep the entire path (slashes/tilde) in logical order*/}
-                        <span
-                          className="block truncate cursor-help text-sm"
-                          style={{
-                            direction: 'rtl',
-                            textAlign: 'left',
-                            overflow: 'hidden',
-                            whiteSpace: 'nowrap',
-                            textOverflow: 'ellipsis',
-                          }}
+              {groupByFolder && sessionGroups
+                ? // Grouped rendering
+                  sessionGroups.map(group => {
+                    const isCollapsed = collapsedFolders.has(group.folder)
+                    return (
+                      <React.Fragment key={`group-${group.folder}`}>
+                        {/* Folder header row */}
+                        <TableRow
+                          className="bg-muted/30 hover:bg-muted/50 cursor-pointer border-l-2 border-l-transparent"
+                          onClick={() => toggleFolderCollapsed(group.folder)}
                         >
-                          <bdo dir="ltr" style={{ unicodeBidi: 'bidi-override' }}>
-                            {session.workingDir || '-'}
-                          </bdo>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-[600px]">
-                        <span className="font-mono text-sm">
-                          {session.workingDir || 'No working directory'}
-                        </span>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>
-                    {editingSessionId === session.id ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              saveEdit()
-                            } else if (e.key === 'Escape') {
-                              e.preventDefault()
-                              cancelEdit()
-                            }
-                          }}
-                          onClick={e => e.stopPropagation()}
-                          className="h-7 text-sm"
-                          autoFocus
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={e => {
-                            e.stopPropagation()
-                            saveEdit()
-                          }}
-                          className="h-7 px-2"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={e => {
-                            e.stopPropagation()
-                            cancelEdit()
-                          }}
-                          className="h-7 px-2"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 group">
-                        <span>
-                          {renderHighlightedText(
-                            session.title ||
-                              session.summary ||
-                              (session.query ? truncate(session.query, 80) : '') ||
-                              truncate(extractTextFromEditorState(session.editorState), 80),
-                            session.id,
-                          )}
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={e => {
-                            e.stopPropagation()
-                            startEdit(session.id, session.title || '', session.summary || '')
-                          }}
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>{session.model || <CircleOff className="w-4 h-4" />}</TableCell>
-                  <TableCell>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">{formatTimestamp(session.createdAt)}</span>
-                      </TooltipTrigger>
-                      <TooltipContent>{formatAbsoluteTimestamp(session.createdAt)}</TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">{formatTimestamp(session.lastActivityAt)}</span>
-                      </TooltipTrigger>
-                      <TooltipContent>{formatAbsoluteTimestamp(session.lastActivityAt)}</TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
+                          <TableCell colSpan={columnCount - 1} className="py-2">
+                            <div className="flex items-center gap-2">
+                              {isCollapsed ? (
+                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              )}
+                              <Folder className="w-4 h-4 text-muted-foreground" />
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="font-medium text-sm">
+                                    {getShortFolderName(group.folder)}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-[600px]">
+                                  <span className="font-mono text-sm">{group.displayName}</span>
+                                </TooltipContent>
+                              </Tooltip>
+                              <span className="text-xs text-muted-foreground">
+                                ({group.sessions.length})
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {/* Session rows for this group */}
+                        {!isCollapsed && group.sessions.map(session => renderSessionRow(session, true))}
+                      </React.Fragment>
+                    )
+                  })
+                : // Flat rendering
+                  sessions.map(session => renderSessionRow(session, false))}
             </TableBody>
           </Table>
         </>

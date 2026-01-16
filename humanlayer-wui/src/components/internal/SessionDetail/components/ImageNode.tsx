@@ -67,9 +67,7 @@ export const ImageNode = ({ node, deleteNode }: ImageNodeProps) => {
             )}
 
             {/* Overlay on hover */}
-            {isHovered && (
-              <span className="absolute inset-0 bg-black/20 pointer-events-none" />
-            )}
+            {isHovered && <span className="absolute inset-0 bg-black/20 pointer-events-none" />}
           </span>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">

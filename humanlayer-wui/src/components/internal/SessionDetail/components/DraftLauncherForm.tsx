@@ -9,13 +9,14 @@ import { usePostHogTracking } from '@/hooks/usePostHogTracking'
 import { POSTHOG_EVENTS } from '@/lib/telemetry/events'
 import { SearchInput } from '@/components/FuzzySearchInput'
 import { HotkeyScopeBoundary } from '@/components/HotkeyScopeBoundary'
+import { MCPServerSelector } from '@/components/MCPServerSelector'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { HOTKEY_SCOPES } from '@/hooks/hotkeys/scopes'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { useRecentPaths } from '@/hooks/useRecentPaths'
 import { daemonClient } from '@/lib/daemon'
-import { type Session, ViewMode } from '@/lib/daemon/types'
+import { type Session, type MCPConfig, ViewMode } from '@/lib/daemon/types'
 import { logger } from '@/lib/logging'
 import { formatError } from '@/utils/errors'
 import { DangerouslySkipPermissionsDialog } from '../DangerouslySkipPermissionsDialog'
@@ -39,11 +40,17 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [title, setTitle] = useState(session?.title ?? session?.summary ?? '')
 
+  // Title undo/redo history
+  const [titleHistory, setTitleHistory] = useState<string[]>([session?.title ?? session?.summary ?? ''])
+  const [titleHistoryIndex, setTitleHistoryIndex] = useState(0)
+  const isUndoRedoRef = useRef(false)
+
   // Refs for mutable values to avoid re-render issues
   const titleRef = useRef(title)
   const workingDirectoryRef = useRef(session?.workingDir ?? '')
   const sessionIdRef = useRef<string | null>(null)
   const draftCreatingRef = useRef(false)
+  const mcpConfigRef = useRef<MCPConfig | undefined>(undefined)
 
   // Local Storage State
   const [workingDirectory, setWorkingDirectory] = useLocalStorage(
@@ -98,6 +105,9 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       : 'anthropic',
   )
 
+  // MCP Config State
+  const [mcpConfig, setMcpConfig] = useState<MCPConfig | undefined>(undefined)
+
   // UI State
   const [isLaunchingDraft, setIsLaunchingDraft] = useState(false)
   const [showDiscardDraftDialog, setShowDiscardDraftDialog] = useState(false)
@@ -106,6 +116,8 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   const [directoryToCreate, setDirectoryToCreate] = useState<string | null>(null)
   // Sync timer for debouncing updates
   const syncTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // Title history timer for debouncing history entries
+  const titleHistoryTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Hooks
   const { paths: recentPaths } = useRecentPaths()
@@ -126,6 +138,10 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
   useEffect(() => {
     sessionIdRef.current = sessionId
   }, [sessionId])
+
+  useEffect(() => {
+    mcpConfigRef.current = mcpConfig
+  }, [mcpConfig])
 
   // ======== NAVIGATION AND INITIAL LOAD ========
 
@@ -217,6 +233,7 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       const response = await daemonClient.launchSession({
         query: '',
         working_dir: workingDirectoryRef.current,
+        mcp_config: mcpConfigRef.current,
         draft: true,
       })
 
@@ -360,6 +377,70 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
 
   // ======== USER INTERACTIONS ========
 
+  // Push a new title to history (debounced to avoid too many entries)
+  const pushTitleToHistory = useCallback(
+    (newTitle: string) => {
+      // Don't push if this is from an undo/redo operation
+      if (isUndoRedoRef.current) {
+        return
+      }
+
+      // Clear any existing timer
+      if (titleHistoryTimerRef.current) {
+        clearTimeout(titleHistoryTimerRef.current)
+      }
+
+      // Debounce the history push to avoid creating an entry for every keystroke
+      titleHistoryTimerRef.current = setTimeout(() => {
+        setTitleHistory(prev => {
+          // Remove any forward history when typing new content
+          const newHistory = prev.slice(0, titleHistoryIndex + 1)
+          // Only add if different from the last entry
+          if (newHistory[newHistory.length - 1] !== newTitle) {
+            newHistory.push(newTitle)
+            setTitleHistoryIndex(newHistory.length - 1)
+          }
+          return newHistory
+        })
+      }, 500)
+    },
+    [titleHistoryIndex],
+  )
+
+  // Handle title undo
+  const handleTitleUndo = useCallback(() => {
+    if (titleHistoryIndex > 0) {
+      isUndoRedoRef.current = true
+      const newIndex = titleHistoryIndex - 1
+      const previousTitle = titleHistory[newIndex]
+      setTitleHistoryIndex(newIndex)
+      setTitle(previousTitle)
+      titleRef.current = previousTitle
+      syncToDaemon()
+      // Reset the flag after a brief delay to allow state to settle
+      setTimeout(() => {
+        isUndoRedoRef.current = false
+      }, 0)
+    }
+  }, [titleHistoryIndex, titleHistory, syncToDaemon])
+
+  // Handle title redo
+  const handleTitleRedo = useCallback(() => {
+    if (titleHistoryIndex < titleHistory.length - 1) {
+      isUndoRedoRef.current = true
+      const newIndex = titleHistoryIndex + 1
+      const nextTitle = titleHistory[newIndex]
+      setTitleHistoryIndex(newIndex)
+      setTitle(nextTitle)
+      titleRef.current = nextTitle
+      syncToDaemon()
+      // Reset the flag after a brief delay to allow state to settle
+      setTimeout(() => {
+        isUndoRedoRef.current = false
+      }, 0)
+    }
+  }, [titleHistoryIndex, titleHistory, syncToDaemon])
+
   // Handle title change - trigger draft creation or sync
   const handleTitleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -367,13 +448,16 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
       setTitle(newTitle)
       titleRef.current = newTitle
 
+      // Push to history (debounced)
+      pushTitleToHistory(newTitle)
+
       if (newTitle.trim() && !sessionIdRef.current) {
         handleCreateDraft()
       } else if (sessionIdRef.current) {
         syncToDaemon()
       }
     },
-    [handleCreateDraft, syncToDaemon],
+    [handleCreateDraft, syncToDaemon, pushTitleToHistory],
   )
 
   // Handle working directory change - trigger draft creation or sync
@@ -799,6 +883,18 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
               className="mt-1"
               value={title}
               onChange={handleTitleChange}
+              onKeyDown={e => {
+                // Handle undo (Cmd/Ctrl+Z)
+                if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleTitleUndo()
+                }
+                // Handle redo (Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y)
+                if ((e.metaKey || e.ctrlKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+                  e.preventDefault()
+                  handleTitleRedo()
+                }
+              }}
             />
           </div>
 
@@ -817,6 +913,18 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
                   handleWorkingDirectoryChange(value)
                 }
               }}
+            />
+          </div>
+
+          {/* MCP Server Selection */}
+          <div className="mb-2">
+            <MCPServerSelector
+              onConfigChange={useCallback((config: MCPConfig | undefined) => {
+                setMcpConfig(config)
+                mcpConfigRef.current = config
+                // Note: MCP config sync to daemon would require updateSession to support mcp_config
+                // For now, MCP config is set when draft is created or when session is launched
+              }, [])}
             />
           </div>
 
