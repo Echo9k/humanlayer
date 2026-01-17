@@ -62,16 +62,14 @@ export default function CommandPaletteMenu({ ref }: { ref: RefObject<HTMLDivElem
   const shouldShowArchive =
     isSessionDetail || (isSessionTable && (focusedSession || selectedSessions.size > 0))
 
-  // Check if we should show delete option (only for archived sessions)
+  // Check if we should show delete option (available for any session)
   const canDelete = (): boolean => {
     if (isSessionDetail && activeSessionDetail) {
-      return activeSessionDetail.session.archived === true
+      return true
     } else if (selectedSessions.size > 0) {
-      const sessionIds = Array.from(selectedSessions)
-      const sessionsToCheck = sessions.filter(s => sessionIds.includes(s.id))
-      return sessionsToCheck.every(s => s.archived === true)
+      return true
     } else if (focusedSession) {
-      return focusedSession.archived === true
+      return true
     }
     return false
   }
@@ -183,7 +181,7 @@ export default function CommandPaletteMenu({ ref }: { ref: RefObject<HTMLDivElem
           {
             id: 'delete-session',
             label: 'Delete Permanently',
-            description: 'Permanently delete archived session(s)',
+            description: 'Permanently delete session(s)',
             action: async () => {
               if (isSessionDetail && activeSessionDetail) {
                 // Delete current session in detail view

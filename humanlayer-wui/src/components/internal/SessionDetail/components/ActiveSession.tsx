@@ -624,22 +624,14 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
     async () => {
       logger.log('[ActiveSession] delete hotkey "d>d" fired')
 
-      // Check if session is archived
-      if (!session.archived) {
-        toast.warning('Can only delete archived sessions', {
-          description: 'Please archive the session first before deleting.',
-        })
-        return
-      }
-
-      // Open confirmation dialog
+      // Open confirmation dialog with timer
       setDeleteDialogOpen(true)
     },
     {
       preventDefault: true,
       scopes: [HOTKEY_SCOPES.SESSION_DETAIL, HOTKEY_SCOPES.SESSION_DETAIL_ARCHIVED],
     },
-    [session.archived],
+    [],
   )
 
   // Handle delete confirmation
@@ -1175,6 +1167,7 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
         <DeleteSessionDialog
           open={deleteDialogOpen}
           sessionCount={1}
+          useTimer={true}
           onConfirm={handleDeleteConfirm}
           onCancel={handleDeleteCancel}
         />

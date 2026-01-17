@@ -475,33 +475,38 @@ impl DaemonManager {
 
 fn get_daemon_path(app_handle: &AppHandle, is_dev: bool) -> Result<PathBuf, String> {
     if is_dev {
-        // In dev mode, look for hld-dev in the project
+        // In dev mode, look for hld-dev or hld in the project
         let current =
             env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
 
         // Handle both running from src-tauri and from humanlayer-wui
-        let dev_path = if current.ends_with("src-tauri") {
+        let hld_dir = if current.ends_with("src-tauri") {
             current
                 .parent() // humanlayer-wui
                 .and_then(|p| p.parent()) // humanlayer root
                 .ok_or("Failed to get parent directory")?
                 .join("hld")
-                .join("hld-dev")
         } else {
             current
                 .parent() // Go up from humanlayer-wui to humanlayer
                 .ok_or("Failed to get parent directory")?
                 .join("hld")
-                .join("hld-dev")
         };
 
+        // Try hld-dev first, then fall back to hld
+        let dev_path = hld_dir.join("hld-dev");
         if dev_path.exists() {
-            Ok(dev_path)
-        } else {
-            Err(format!(
-                "Development daemon not found at {dev_path:?}. Run 'make daemon-dev-build' first."
-            ))
+            return Ok(dev_path);
         }
+
+        let fallback_path = hld_dir.join("hld");
+        if fallback_path.exists() {
+            return Ok(fallback_path);
+        }
+
+        Err(format!(
+            "Development daemon not found. Looked for 'hld-dev' and 'hld' in {hld_dir:?}. Run 'go build -o hld ./cmd/hld' in the hld directory."
+        ))
     } else {
         // In production, use bundled binary
         let resource_dir = app_handle

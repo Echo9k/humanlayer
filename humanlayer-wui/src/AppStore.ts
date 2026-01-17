@@ -600,7 +600,7 @@ export const useStore = create<StoreState>((set, get) => {
           logger.error('Failed to delete some sessions:', response.failed_sessions)
         }
         // Remove deleted sessions from local state
-        response.deleted.forEach(sessionId => {
+        ;(response.deleted || []).forEach(sessionId => {
           get().removeSession(sessionId)
         })
         // Clear selection after bulk operation

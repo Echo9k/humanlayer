@@ -147,6 +147,7 @@ function SessionTableInner({
   // State for delete confirmation dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [sessionsToDelete, setSessionsToDelete] = useState<string[]>([])
+  const [useTimedDelete, setUseTimedDelete] = useState(false)
 
   // State for collapsed folder groups (only used when groupByFolder is enabled)
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
@@ -765,20 +766,8 @@ function SessionTableInner({
         return
       }
 
-      // Get session objects to check if they're archived
-      const sessionObjects = sessionIds.map(id => sessions.find(s => s.id === id)).filter(Boolean)
-
-      // Check if all sessions are archived
-      const allArchived = sessionObjects.every(s => s?.archived)
-
-      if (!allArchived) {
-        toast.warning('Can only delete archived sessions', {
-          description: 'Please archive the session(s) first before deleting.',
-        })
-        return
-      }
-
-      // Open confirmation dialog
+      // Open confirmation dialog with timer
+      setUseTimedDelete(true)
       setSessionsToDelete(sessionIds)
       setDeleteDialogOpen(true)
     },
@@ -790,7 +779,7 @@ function SessionTableInner({
         (focusedSession !== null || selectedSessions.size > 0),
       preventDefault: true,
     },
-    [focusedSession, sessions, selectedSessions, isInlineRenameOpen],
+    [focusedSession, sessions, selectedSessions, isInlineRenameOpen, isSessionLauncherOpen],
   )
 
   // Handle delete confirmation
@@ -818,6 +807,7 @@ function SessionTableInner({
   const handleDeleteCancel = () => {
     setDeleteDialogOpen(false)
     setSessionsToDelete([])
+    setUseTimedDelete(false)
   }
 
   // Helper to render a session row
@@ -1151,6 +1141,7 @@ function SessionTableInner({
       <DeleteSessionDialog
         open={deleteDialogOpen}
         sessionCount={sessionsToDelete.length}
+        useTimer={useTimedDelete}
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />

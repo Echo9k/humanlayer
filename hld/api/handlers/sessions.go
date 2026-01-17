@@ -1874,10 +1874,10 @@ func (h *SessionHandlers) SearchSessions(ctx context.Context, req api.SearchSess
 	}, nil
 }
 
-// DeleteSession permanently deletes an archived session
+// DeleteSession permanently deletes a session
 func (h *SessionHandlers) DeleteSession(ctx context.Context, req api.DeleteSessionRequestObject) (api.DeleteSessionResponseObject, error) {
-	// Get the session and verify it's archived
-	sess, err := h.store.GetSession(ctx, string(req.Id))
+	// Verify session exists
+	_, err := h.store.GetSession(ctx, string(req.Id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return api.DeleteSession404JSONResponse{
@@ -1900,16 +1900,6 @@ func (h *SessionHandlers) DeleteSession(ctx context.Context, req api.DeleteSessi
 					Code:    "HLD-4013",
 					Message: err.Error(),
 				},
-			},
-		}, nil
-	}
-
-	// Check if session is archived
-	if !sess.Archived {
-		return api.DeleteSession400JSONResponse{
-			Error: api.ErrorDetail{
-				Code:    "HLD-4014",
-				Message: "Can only delete archived sessions. Archive the session first.",
 			},
 		}, nil
 	}
@@ -1967,8 +1957,8 @@ func (h *SessionHandlers) BulkDeleteSessions(ctx context.Context, req api.BulkDe
 	failed := make([]string, 0)
 
 	for _, sessionId := range sessionIds {
-		// Get session and check if archived
-		sess, err := h.store.GetSession(ctx, sessionId)
+		// Verify session exists
+		_, err := h.store.GetSession(ctx, sessionId)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				// Session doesn't exist, count as failed
@@ -1977,16 +1967,6 @@ func (h *SessionHandlers) BulkDeleteSessions(ctx context.Context, req api.BulkDe
 			}
 			slog.Error("Failed to get session for bulk delete",
 				"error", fmt.Sprintf("%v", err),
-				"session_id", sessionId,
-				"operation", "BulkDeleteSessions",
-			)
-			failed = append(failed, sessionId)
-			continue
-		}
-
-		// Check if session is archived
-		if !sess.Archived {
-			slog.Warn("Cannot delete non-archived session",
 				"session_id", sessionId,
 				"operation", "BulkDeleteSessions",
 			)
