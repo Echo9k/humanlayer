@@ -200,6 +200,7 @@ export class HLDClient {
         proxyModelOverride?: string,
         proxyApiKey?: string,
         archived?: boolean,
+        reviewed?: boolean,
         additionalDirectories?: string[],
         working_dir?: string,
         editorState?: string
@@ -238,6 +239,9 @@ export class HLDClient {
         }
         if (updates.archived !== undefined) {
             updateSessionRequest.archived = updates.archived;
+        }
+        if (updates.reviewed !== undefined) {
+            updateSessionRequest.reviewed = updates.reviewed;
         }
         if (updates.additionalDirectories !== undefined) {
             updateSessionRequest.additionalDirectories = updates.additionalDirectories;

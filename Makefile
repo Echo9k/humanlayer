@@ -84,6 +84,17 @@ check-test: ## Run all checks and tests
 	@$(MAKE) check
 	@$(MAKE) test
 
+.PHONY: build-frontend
+build-frontend: ## Build the frontend (CodeLayer WUI)
+	@$(MAKE) -C humanlayer-wui build VERBOSE=$(VERBOSE)
+
+.PHONY: build-backend
+build-backend: ## Build the backend (hld daemon)
+	@$(MAKE) -C hld build VERBOSE=$(VERBOSE)
+
+.PHONY: build
+build: build-backend build-frontend ## Build both frontend and backend
+
 .PHONY: check-verbose
 check-verbose: ## Run checks with verbose output
 	@VERBOSE=1 $(MAKE) check
