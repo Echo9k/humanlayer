@@ -884,13 +884,14 @@ export const DraftLauncherForm: React.FC<DraftLauncherFormProps> = ({ session, o
               value={title}
               onChange={handleTitleChange}
               onKeyDown={e => {
+                const key = e.key.toLowerCase()
                 // Handle undo (Cmd/Ctrl+Z)
-                if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+                if ((e.metaKey || e.ctrlKey) && key === 'z' && !e.shiftKey) {
                   e.preventDefault()
                   handleTitleUndo()
                 }
                 // Handle redo (Cmd/Ctrl+Shift+Z or Cmd/Ctrl+Y)
-                if ((e.metaKey || e.ctrlKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+                if ((e.metaKey || e.ctrlKey) && ((key === 'z' && e.shiftKey) || key === 'y')) {
                   e.preventDefault()
                   handleTitleRedo()
                 }

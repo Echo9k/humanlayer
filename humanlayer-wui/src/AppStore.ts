@@ -196,23 +196,32 @@ export const useStore = create<StoreState>((set, get) => {
     isResponseEditorEmpty: true,
     initSessions: (sessions: Session[]) => set({ sessions }),
     updateSession: (sessionId: string, updates: Partial<Session>) =>
-      set(state => ({
-        sessions: state.sessions.map(session =>
-          session.id === sessionId ? { ...session, ...updates } : session,
-        ),
-        focusedSession:
-          state.focusedSession?.id === sessionId
-            ? { ...state.focusedSession, ...updates }
-            : state.focusedSession,
-        // Also update activeSessionDetail if it matches
-        activeSessionDetail:
-          state.activeSessionDetail?.session.id === sessionId
-            ? {
-                ...state.activeSessionDetail,
-                session: { ...state.activeSessionDetail.session, ...updates },
-              }
-            : state.activeSessionDetail,
-      })),
+      set(state => {
+        // Preserve pending updates that are recent (< 2 seconds old)
+        const pending = state.pendingUpdates.get(sessionId)
+        const mergedUpdates =
+          pending && pending.timestamp > Date.now() - 2000
+            ? { ...updates, ...pending.updates } // Pending takes precedence
+            : updates
+
+        return {
+          sessions: state.sessions.map(session =>
+            session.id === sessionId ? { ...session, ...mergedUpdates } : session,
+          ),
+          focusedSession:
+            state.focusedSession?.id === sessionId
+              ? { ...state.focusedSession, ...mergedUpdates }
+              : state.focusedSession,
+          // Also update activeSessionDetail if it matches
+          activeSessionDetail:
+            state.activeSessionDetail?.session.id === sessionId
+              ? {
+                  ...state.activeSessionDetail,
+                  session: { ...state.activeSessionDetail.session, ...mergedUpdates },
+                }
+              : state.activeSessionDetail,
+        }
+      }),
     updateSessionOptimistic: async (sessionId: string, updates: Partial<Session>) => {
       const timestamp = Date.now()
 

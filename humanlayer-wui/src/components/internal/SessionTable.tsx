@@ -3,7 +3,7 @@ import { Session, SessionStatus } from '@/lib/daemon/types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   CircleOff,
   CheckSquare,
@@ -783,7 +783,7 @@ function SessionTableInner({
   )
 
   // Handle delete confirmation
-  const handleDeleteConfirm = async () => {
+  const handleDeleteConfirm = useCallback(async () => {
     try {
       if (sessionsToDelete.length === 1) {
         await deleteSession(sessionsToDelete[0])
@@ -802,13 +802,13 @@ function SessionTableInner({
       setDeleteDialogOpen(false)
       setSessionsToDelete([])
     }
-  }
+  }, [sessionsToDelete, deleteSession, bulkDeleteSessions, trackEvent])
 
-  const handleDeleteCancel = () => {
+  const handleDeleteCancel = useCallback(() => {
     setDeleteDialogOpen(false)
     setSessionsToDelete([])
     setUseTimedDelete(false)
-  }
+  }, [])
 
   // Helper to render a session row
   const renderSessionRow = (session: Session, hideWorkingDir = false) => (
