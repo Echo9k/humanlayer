@@ -176,7 +176,7 @@ The system handles StrictMode double-mounting automatically through:
 
 - `?` - Toggle keyboard shortcuts panel
 - `Cmd+K` / `Ctrl+K` - Open command palette
-- `C` - Create new session
+- `Cmd+N` / `Ctrl+N` - Create new session
 - `G,S` - Go to sessions
 - `G,E` - Go to archived sessions
 - `Cmd+T` / `Ctrl+T` - Toggle theme selector
@@ -223,6 +223,7 @@ The system handles StrictMode double-mounting automatically through:
 - `Ctrl+X` - Interrupt session
 - `P` - Go to parent session
 - `Cmd+Y` / `Ctrl+Y` - Toggle fork view
+- `Cmd+G` / `Ctrl+G` - Open commit dialog
 - `Option+A` / `Alt+A` - Toggle auto-accept edits
 - `Enter` - Focus response input
 - `Cmd+Enter` / `Ctrl+Enter` - Submit response

@@ -441,9 +441,9 @@ export function useSessionLauncherHotkeys() {
     )
   }
 
-  // Cmd+K - Command palette (root scope)
+  // Cmd+Shift+N - Command palette (root scope)
   useHotkeys(
-    'meta+k, ctrl+k',
+    'meta+shift+n, ctrl+shift+n',
     () => {
       if (!isOpen) {
         // Track command launcher opened event
@@ -461,9 +461,9 @@ export function useSessionLauncherHotkeys() {
     },
   )
 
-  // C - Navigate to new draft session route (root scope)
+  // Cmd+N / Ctrl+N - Navigate to new draft session route (root scope)
   useHotkeys(
-    'c',
+    'meta+n, ctrl+n',
     () => {
       // Navigate to draft route without creating a session
       // The draft will be created lazily when user starts typing
@@ -471,7 +471,6 @@ export function useSessionLauncherHotkeys() {
     },
     {
       scopes: [HOTKEY_SCOPES.ROOT],
-      enabled: !isTypingInInput(),
       preventDefault: true,
     },
   )

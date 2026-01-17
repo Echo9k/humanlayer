@@ -18,6 +18,10 @@ import {
   setArchiveGroupByFolderPreference,
   getArchiveHideReviewedPreference,
   setArchiveHideReviewedPreference,
+  getNormalGroupByFolderPreference,
+  setNormalGroupByFolderPreference,
+  getDraftsGroupByFolderPreference,
+  setDraftsGroupByFolderPreference,
   getSessionSortColumn,
   setSessionSortColumn,
   getSessionSortDirection,
@@ -35,15 +39,38 @@ export function SessionTablePage() {
   // Focus source tracking
   const [, setFocusSource] = useState<'mouse' | 'keyboard' | null>(null)
 
-  // Group by folder preference for archived view
-  const [groupByFolder, setGroupByFolder] = useState(() => getArchiveGroupByFolderPreference())
+  // Group by folder preferences for each view
+  const [normalGroupByFolder, setNormalGroupByFolder] = useState(() =>
+    getNormalGroupByFolderPreference(),
+  )
+  const [draftsGroupByFolder, setDraftsGroupByFolder] = useState(() =>
+    getDraftsGroupByFolderPreference(),
+  )
+  const [archiveGroupByFolder, setArchiveGroupByFolder] = useState(() =>
+    getArchiveGroupByFolderPreference(),
+  )
 
   const toggleGroupByFolder = useCallback(() => {
-    setGroupByFolder(prev => {
-      const newValue = !prev
-      setArchiveGroupByFolderPreference(newValue)
-      return newValue
-    })
+    const viewMode = useStore.getState().getViewMode()
+    if (viewMode === ViewMode.Normal) {
+      setNormalGroupByFolder(prev => {
+        const newValue = !prev
+        setNormalGroupByFolderPreference(newValue)
+        return newValue
+      })
+    } else if (viewMode === ViewMode.Drafts) {
+      setDraftsGroupByFolder(prev => {
+        const newValue = !prev
+        setDraftsGroupByFolderPreference(newValue)
+        return newValue
+      })
+    } else {
+      setArchiveGroupByFolder(prev => {
+        const newValue = !prev
+        setArchiveGroupByFolderPreference(newValue)
+        return newValue
+      })
+    }
   }, [])
 
   // Hide reviewed preference for archived view
@@ -496,43 +523,57 @@ export function SessionTablePage() {
         </Tabs>
 
         <div className="flex items-center gap-2">
-          {/* Archive view toggles - only shown in archived view */}
+          {/* Hide reviewed toggle - only shown in archived view */}
           {viewMode === ViewMode.Archived && (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={toggleHideReviewed}
-                    size="sm"
-                    variant={hideReviewed ? 'default' : 'outline'}
-                    className="gap-1.5"
-                  >
-                    {hideReviewed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    {hideReviewed ? 'Hiding reviewed' : 'Showing all'}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {hideReviewed ? 'Show reviewed sessions' : 'Hide reviewed sessions'}
-                </TooltipContent>
-              </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={toggleHideReviewed}
+                  size="sm"
+                  variant={hideReviewed ? 'default' : 'outline'}
+                  className="gap-1.5"
+                >
+                  {hideReviewed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {hideReviewed ? 'Hiding reviewed' : 'Showing all'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {hideReviewed ? 'Show reviewed sessions' : 'Hide reviewed sessions'}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Group by folder toggle - available for all views */}
+          {(() => {
+            const currentGroupByFolder =
+              viewMode === ViewMode.Normal
+                ? normalGroupByFolder
+                : viewMode === ViewMode.Drafts
+                  ? draftsGroupByFolder
+                  : archiveGroupByFolder
+            return (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     onClick={toggleGroupByFolder}
                     size="sm"
-                    variant={groupByFolder ? 'default' : 'outline'}
+                    variant={currentGroupByFolder ? 'default' : 'outline'}
                     className="gap-1.5"
                   >
-                    {groupByFolder ? <FolderTree className="h-4 w-4" /> : <List className="h-4 w-4" />}
-                    {groupByFolder ? 'Grouped' : 'Flat'}
+                    {currentGroupByFolder ? (
+                      <FolderTree className="h-4 w-4" />
+                    ) : (
+                      <List className="h-4 w-4" />
+                    )}
+                    {currentGroupByFolder ? 'Grouped' : 'Flat'}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {groupByFolder ? 'Switch to flat list view' : 'Group archived sessions by folder'}
+                  {currentGroupByFolder ? 'Switch to flat list view' : 'Group sessions by folder'}
                 </TooltipContent>
               </Tooltip>
-            </>
-          )}
+            )
+          })()}
 
           {/* Only show Create button when not in empty state for normal/drafts view */}
           {(viewMode === ViewMode.Archived || sessions.length > 0) && (
@@ -573,7 +614,13 @@ export function SessionTablePage() {
           isDraftsView={viewMode === ViewMode.Drafts}
           onNavigateToSessions={() => setViewMode(ViewMode.Normal)}
           onBypassPermissions={handleBypassPermissions}
-          groupByFolder={viewMode === ViewMode.Archived && groupByFolder}
+          groupByFolder={
+            viewMode === ViewMode.Normal
+              ? normalGroupByFolder
+              : viewMode === ViewMode.Drafts
+                ? draftsGroupByFolder
+                : archiveGroupByFolder
+          }
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSortChange={handleSortChange}

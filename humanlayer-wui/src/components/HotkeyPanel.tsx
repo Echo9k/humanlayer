@@ -23,8 +23,8 @@ interface HotkeyPanelProps {
 const hotkeyData = [
   // Global
   { category: 'Global', key: '?', description: 'Toggle keyboard shortcuts' },
-  { category: 'Global', key: '⌘+K', description: 'Open command palette' },
-  { category: 'Global', key: 'C', description: 'Create new session' },
+  { category: 'Global', key: '⌘+⇧+N', description: 'Open command palette' },
+  { category: 'Global', key: '⌘+N', description: 'Create new session' },
   { category: 'Global', key: 'G,S', description: 'Go to sessions' },
   { category: 'Global', key: 'G,E', description: 'Go to archived sessions' },
   { category: 'Global', key: '⌘+T', description: 'Toggle theme selector' },
@@ -69,6 +69,7 @@ const hotkeyData = [
   { category: 'Session Detail', key: 'Ctrl+X', description: 'Interrupt session' },
   { category: 'Session Detail', key: 'P', description: 'Go to parent session' },
   { category: 'Session Detail', key: '⌘+Y', description: 'Toggle fork view' },
+  { category: 'Session Detail', key: '⌘+G', description: 'Open commit dialog' },
   { category: 'Session Detail', key: '⌥+A', description: 'Toggle auto-accept edits' },
   { category: 'Session Detail', key: 'Enter', description: 'Focus response input' },
   { category: 'Session Detail', key: '⌘+Enter', description: 'Submit response' },

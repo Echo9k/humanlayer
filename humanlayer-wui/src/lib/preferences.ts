@@ -2,6 +2,8 @@
 export const ARCHIVE_ON_FORK_KEY = 'archive-source-on-fork'
 export const ARCHIVE_GROUP_BY_FOLDER_KEY = 'archive-group-by-folder'
 export const ARCHIVE_HIDE_REVIEWED_KEY = 'archive-hide-reviewed'
+export const NORMAL_GROUP_BY_FOLDER_KEY = 'normal-group-by-folder'
+export const DRAFTS_GROUP_BY_FOLDER_KEY = 'drafts-group-by-folder'
 export const SESSION_SORT_COLUMN_KEY = 'session-sort-column'
 export const SESSION_SORT_DIRECTION_KEY = 'session-sort-direction'
 
@@ -53,6 +55,24 @@ export const getArchiveHideReviewedPreference = (): boolean => {
 
 export const setArchiveHideReviewedPreference = (value: boolean): void => {
   localStorage.setItem(ARCHIVE_HIDE_REVIEWED_KEY, String(value))
+}
+
+export const getNormalGroupByFolderPreference = (): boolean => {
+  const stored = localStorage.getItem(NORMAL_GROUP_BY_FOLDER_KEY)
+  return stored === 'true' // Default to false
+}
+
+export const setNormalGroupByFolderPreference = (value: boolean): void => {
+  localStorage.setItem(NORMAL_GROUP_BY_FOLDER_KEY, String(value))
+}
+
+export const getDraftsGroupByFolderPreference = (): boolean => {
+  const stored = localStorage.getItem(DRAFTS_GROUP_BY_FOLDER_KEY)
+  return stored === 'true' // Default to false
+}
+
+export const setDraftsGroupByFolderPreference = (value: boolean): void => {
+  localStorage.setItem(DRAFTS_GROUP_BY_FOLDER_KEY, String(value))
 }
 
 // Draft Launcher helper functions

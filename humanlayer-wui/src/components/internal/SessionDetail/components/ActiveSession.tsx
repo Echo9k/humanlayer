@@ -801,9 +801,9 @@ export function ActiveSession({ session, onClose }: ActiveSessionProps) {
     },
   )
 
-  // Open commit dialog (Ctrl+K)
+  // Open commit dialog (Cmd+G / Ctrl+G)
   useHotkeys(
-    'meta+k, ctrl+k',
+    'meta+g, ctrl+g',
     e => {
       e.preventDefault()
       if (session.workingDir) {
