@@ -38,6 +38,12 @@ check-header:
 	@sh -n ./hack/run_silent.sh || (echo "❌ Shell script syntax error in hack/run_silent.sh" && exit 1)
 	@. ./hack/run_silent.sh && print_main_header "Running Checks"
 
+# Python SDK checks
+.PHONY: check-python
+check-python: ## Check Python SDK (linting and type checking)
+	@echo "Checking Python SDK..."
+	@cd humanlayer && poetry install --quiet && poetry run ruff check . && poetry run mypy humanlayer/
+
 # Summary removed - tracking doesn't work across sub-makes
 
 .PHONY: check
@@ -67,6 +73,12 @@ test-claudecode-go: ## Test claudecode-go
 test-header:
 	@sh -n ./hack/run_silent.sh || (echo "❌ Shell script syntax error in hack/run_silent.sh" && exit 1)
 	@. ./hack/run_silent.sh && print_main_header "Running Tests"
+
+# Python SDK tests
+.PHONY: test-python
+test-python: ## Test Python SDK
+	@echo "Testing Python SDK..."
+	@cd humanlayer && poetry install --quiet && poetry run pytest humanlayer/
 
 .PHONY: clean-wui-release
 clean-wui-release: ## clean WUI release
