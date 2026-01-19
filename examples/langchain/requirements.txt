@@ -1,0 +1,7 @@
+langchain
+langchain-openai
+python-dotenv
+# install humanlayer
+humanlayer==0.5.7
+# or if you want an editable version
+# -e ../../
