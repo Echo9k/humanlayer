@@ -404,13 +404,27 @@ func (c *Client) Launch(config SessionConfig) (*Session, error) {
 	// Wait for process to complete in background
 	go func() {
 		// Wait for the command to exit
-		session.SetError(cmd.Wait())
+		waitErr := cmd.Wait()
+		session.SetError(waitErr)
 
 		// IMPORTANT: Wait for parsing to complete before signaling done.
 		// This ensures that all output has been read and processed before
 		// the session is considered complete. Without this synchronization,
 		// Wait() might return before the result is available.
 		<-parseDone
+
+		// Extract exit code and store in result for debugging
+		if session.result != nil {
+			if waitErr != nil {
+				if exitErr, ok := waitErr.(*exec.ExitError); ok {
+					session.result.ExitCode = exitErr.ExitCode()
+				} else {
+					session.result.ExitCode = -1 // Unknown error
+				}
+			} else {
+				session.result.ExitCode = 0 // Success
+			}
+		}
 
 		close(session.done)
 	}()
@@ -512,6 +526,7 @@ func (s *Session) parseStreamingJSON(stdout, stderr io.Reader) {
 				SessionID:         event.SessionID,
 				Usage:             event.Usage,
 				Error:             event.Error,
+				Errors:            event.Errors,
 				PermissionDenials: event.PermissionDenials,
 				UUID:              event.UUID,
 			}
@@ -533,8 +548,16 @@ func (s *Session) parseStreamingJSON(stdout, stderr io.Reader) {
 	// Wait for stderr reading to complete before accessing the buffer
 	<-stderrDone
 
-	// If we got stderr output, that's an error
-	if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+	// Capture stderr output
+	stderrOutput := stderrBuf.String()
+
+	// If we have a result, store stderr in it for debugging (even if result has is_error with empty message)
+	if s.result != nil {
+		s.result.StderrOutput = stderrOutput
+	}
+
+	// If we got stderr output and no result, that's an error
+	if stderrOutput != "" && s.result == nil {
 		s.SetError(fmt.Errorf("claude error: %s", stderrOutput))
 	}
 
@@ -579,12 +602,15 @@ func (s *Session) parseSingleJSON(stdout, stderr io.Reader) {
 	s.result = &result
 	s.ID = result.SessionID
 
-	// If we got stderr output, that's an error
-	if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-		// Don't override result if we got valid JSON
-		if s.result == nil {
-			s.SetError(fmt.Errorf("claude error: %s", stderrOutput))
-		}
+	// Capture stderr output in result for debugging
+	stderrOutput := stderrBuf.String()
+	if s.result != nil {
+		s.result.StderrOutput = stderrOutput
+	}
+
+	// If we got stderr output and no result, that's an error
+	if stderrOutput != "" && s.result == nil {
+		s.SetError(fmt.Errorf("claude error: %s", stderrOutput))
 	}
 }
 
@@ -613,8 +639,16 @@ func (s *Session) parseTextOutput(stdout, stderr io.Reader) {
 		}
 	}
 
-	// If we got stderr output, that's an error
-	if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+	// Capture stderr output
+	stderrOutput := stderrBuf.String()
+
+	// Store stderr in result for debugging
+	if s.result != nil {
+		s.result.StderrOutput = stderrOutput
+	}
+
+	// If we got stderr output and no result, that's an error
+	if stderrOutput != "" && s.result == nil {
 		s.SetError(fmt.Errorf("claude error: %s", stderrOutput))
 	}
 }

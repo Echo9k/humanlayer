@@ -100,6 +100,7 @@ type StreamEvent struct {
 	Usage             *Usage                      `json:"usage,omitempty"`
 	ModelUsage        map[string]ModelUsageDetail `json:"modelUsage,omitempty"`
 	Error             string                      `json:"error,omitempty"`
+	Errors            []string                    `json:"errors,omitempty"` // Array of error messages (used by Claude CLI for fork failures)
 	PermissionDenials *PermissionDenials          `json:"permission_denials,omitempty"`
 	UUID              string                      `json:"uuid,omitempty"`
 }
@@ -275,8 +276,13 @@ type Result struct {
 	Usage             *Usage                      `json:"usage,omitempty"`
 	ModelUsage        map[string]ModelUsageDetail `json:"modelUsage,omitempty"`
 	Error             string                      `json:"error,omitempty"`
+	Errors            []string                    `json:"errors,omitempty"` // Array of error messages (used by Claude CLI for fork failures)
 	PermissionDenials *PermissionDenials          `json:"permission_denials,omitempty"`
 	UUID              string                      `json:"uuid,omitempty"`
+
+	// Non-JSON fields for debugging - populated from process output
+	StderrOutput string `json:"-"` // Captured stderr for debugging when errors have empty messages
+	ExitCode     int    `json:"-"` // Process exit code for diagnostics
 }
 
 // Session represents an active Claude session

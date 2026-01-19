@@ -679,11 +679,35 @@ eventLoop:
 			"duration", endTime.Sub(startTime))
 		m.updateSessionStatus(ctx, sessionID, StatusFailed, err.Error())
 	} else if result != nil && result.IsError {
+		// Construct a meaningful error message from available info
+		errorMsg := result.Error
+		if errorMsg == "" {
+			// Check for errors array (used by Claude CLI for fork failures, etc.)
+			if len(result.Errors) > 0 {
+				errorMsg = strings.Join(result.Errors, "; ")
+			} else if result.StderrOutput != "" {
+				// Limit stderr to first 500 chars to avoid huge error messages
+				stderr := result.StderrOutput
+				if len(stderr) > 500 {
+					stderr = stderr[:500] + "..."
+				}
+				errorMsg = fmt.Sprintf("Claude process failed: %s", stderr)
+			} else if result.NumTurns == 0 {
+				// Session failed immediately without completing any turns - likely fork/resume failure
+				errorMsg = "Fork/resume failed: Claude exited without completing any turns. Try starting a new session instead."
+			} else {
+				errorMsg = fmt.Sprintf("Session failed with unknown error (exit code: %d)", result.ExitCode)
+			}
+		}
 		slog.Error("claude process failed with error result",
 			"session_id", sessionID,
-			"error", result.Error,
+			"error", errorMsg,
+			"errors", result.Errors,
+			"stderr", result.StderrOutput,
+			"exit_code", result.ExitCode,
+			"num_turns", result.NumTurns,
 			"duration", endTime.Sub(startTime))
-		m.updateSessionStatus(ctx, sessionID, StatusFailed, result.Error)
+		m.updateSessionStatus(ctx, sessionID, StatusFailed, errorMsg)
 	} else {
 		// No longer updating in-memory session
 
